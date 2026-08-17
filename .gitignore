@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+converted/
+build/
+tests/fixtures/
+
+# Legacy Flash content is third-party and its licence is almost never clear.
+# amber ships none of it, ever -- the corpus lives outside the repo entirely,
+# at ~/Documents/Amber/corpus. See AGENTS.md.
+corpus/
+*.swf
+*.flv
