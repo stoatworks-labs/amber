@@ -273,7 +273,8 @@ def probe_media(path: str | Path) -> MediaInfo:
             "-v", "error",
             "-select_streams", "v:0",
             "-show_entries",
-            "stream=codec_name,width,height,r_frame_rate,pix_fmt,nb_frames:format=duration",
+            "stream=codec_name,width,height,r_frame_rate,avg_frame_rate,pix_fmt,nb_frames"
+            ":format=duration",
             "-of", "json",
             str(path),
         ],
@@ -303,11 +304,29 @@ def probe_media(path: str | Path) -> MediaInfo:
     except (TypeError, ValueError):
         duration = 0.0
 
+    # Prefer avg_frame_rate over r_frame_rate, which for FLV is routinely a lie.
+    #
+    # FLV timestamps are milliseconds, so the container's time base is 1/1000.
+    # ffprobe defines r_frame_rate as the lowest rate at which every timestamp
+    # can be represented exactly -- which for a millisecond time base collapses
+    # to **1000/1** whenever the frame intervals are not a neat divisor of it.
+    # Measured on a real 6-second bars-and-tone card: r_frame_rate 1000/1,
+    # avg_frame_rate 10/1. Reporting 1000fps for a ten-frame-per-second file is
+    # alarming and wrong, and it is the number a user would reach for when
+    # deciding whether a conversion had gone astray.
+    #
+    # avg_frame_rate is measured (frames over duration) rather than derived, so
+    # it is the honest headline. It falls back to r_frame_rate when ffprobe
+    # cannot compute it -- a stream with no duration reports 0/0.
+    r_rate = _parse_rate(stream.get("r_frame_rate", ""))
+    avg_rate = _parse_rate(stream.get("avg_frame_rate", ""))
+    frame_rate = avg_rate if avg_rate > 0 else r_rate
+
     return MediaInfo(
         codec=stream.get("codec_name", "?"),
         width=int(stream.get("width") or 0),
         height=int(stream.get("height") or 0),
-        frame_rate=_parse_rate(stream.get("r_frame_rate", "")),
+        frame_rate=frame_rate,
         duration=duration,
         pix_fmt=stream.get("pix_fmt", ""),
         nb_frames=nb_frames,

@@ -69,6 +69,15 @@ Hap Alpha was measured **byte-exact** through a roundtrip. ProRes 4444 was off
 by one 8-bit step in places (the trip through 10-bit YUV) and is the fallback
 only.
 
+**Plain `hap` is strictly worse than DXV and should never be chosen over it.**
+Measured on four seconds of gradient-heavy 720p footage: `dxv` and `hap` scored
+an *identical* 44.96 dB with an identical maximum error of 44 -- they are both
+DXT1 -- while `hap` was **27% larger** (14MB against 11MB). `hap_q` reached
+46.76 dB and more than halved the worst-case error to 19, for 20MB. So the
+profile order in `choose_profile` is not a guess: DXV for opaque content by
+default, `hap_q` when gradients block up, and plain `hap` never on merit -- it
+exists only as an alpha-less sibling of the Hap family.
+
 **Ruffle's exporter pads filenames to the frame count.** 904 frames are written
 `000.png`; 60 frames are written `00.png`. A hardcoded `%03d` works on long
 content and silently matches nothing on short. `_frame_pattern()` reads the
@@ -92,6 +101,19 @@ and quantises to 29.96875; that is the format, not a bug.
 length and 12–16 the LZMA properties, so the stream starts at 17, and Python's
 `FORMAT_ALONE` needs a synthesised 8-byte size field that the SWF header does
 not provide in the right width. Rebuilt from the declared file length.
+
+**FLV's `r_frame_rate` is routinely a lie, and `avg_frame_rate` is the answer.**
+FLV timestamps are milliseconds, so the container time base is 1/1000, and
+ffprobe defines `r_frame_rate` as the lowest rate representing every timestamp
+exactly -- which collapses to **1000/1** whenever the frame intervals are not a
+neat divisor of it. Measured on a real bars-and-tone card: `r_frame_rate`
+1000/1, `avg_frame_rate` 10/1. `probe_media` prefers avg and falls back to r
+only when ffprobe cannot compute it (0/0 on a stream with no duration).
+
+**A sparse FLV is a real thing, not a conversion failure.** `barsandtone.flv` is
+six seconds long and contains exactly **two** video frames -- a static card held
+for the duration. A converter reporting "2 frames" for a 6s clip looks broken
+and is correct; check `ffprobe -count_frames` on the *source* before chasing it.
 
 **Homebrew Python is PEP 668 managed** — `pip install pytest` fails. `verify.sh`
 creates `.venv` itself.

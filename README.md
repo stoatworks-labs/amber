@@ -38,7 +38,7 @@ Output is chosen from what the source needs:
 |---|---|---|
 | `dxv` | default for opaque content | Resolume's own codec, GPU-decoded |
 | `hap_alpha` | default when the source has alpha | GPU-decoded, alpha byte-exact |
-| `hap_q` | on request | higher quality than DXV, bigger files |
+| `hap_q` | on request | 46.8 dB vs DXV's 45.0, worst-case error halved, ~80% larger |
 | `prores4444` | alpha fallback where Hap is unavailable | CPU-decoded, much larger |
 
 ## Installing
@@ -85,6 +85,17 @@ ffmpeg fixes it is noticed rather than assumed.
 For `.swf` this costs nothing at all — Flash is vector, so Ruffle simply
 rasterises straight to a legal size. For `.flv` the frames are raster and have
 to be resampled (`--fit scale`, the default) or padded (`--fit pad`).
+
+**DXV blocks up on smooth gradients.** It is DXT1 at a fixed 4:1, so skies and
+soft falloffs show visible 4x4 blocking. Measured against a lossless reference
+on gradient-heavy 720p footage: DXV 45.0 dB with a worst-case error of 44,
+`hap_q` 46.8 dB with a worst-case error of 19 — for about 80% more file. Reach
+for `--profile hap_q` when the content is gradient-heavy and the disk can take
+it. Plain `--profile hap` is pointless: identical quality to DXV, 27% bigger.
+
+**DXV files are large.** 28 seconds of 3840x2160 came out at 1.4GB. That is the
+codec working as intended — it trades size for GPU-decodable playback — but plan
+disk accordingly before converting a library.
 
 ## The live plugin
 

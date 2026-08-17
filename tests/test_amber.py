@@ -444,3 +444,30 @@ def test_converter_refuses_transparent_swf_rather_than_lying():
         convert_swf(
             FIXTURES / "shape.swf", Path("/tmp/unused"), caps, transparent=True
         )
+
+
+def test_frame_rate_prefers_the_measured_average(tmp_path):
+    """FLV timestamps are milliseconds, so r_frame_rate collapses to 1000/1 for
+    any file whose intervals are not a neat divisor of it. avg_frame_rate is
+    measured rather than derived and is the honest number.
+
+    Built here rather than taken from a fixture on disk, because ffmpeg cannot
+    encode VP6 and the real file that exposed this is not redistributable.
+    """
+    caps = _ffmpeg_or_skip()
+    source = tmp_path / "sparse.flv"
+    # Two frames six seconds apart: exactly the shape that makes r_frame_rate
+    # report 1000 while the true rate is a fraction of one frame per second.
+    subprocess.run(
+        [caps.path, "-nostdin", "-v", "error", "-y", "-f", "lavfi",
+         "-i", "testsrc2=size=320x240:rate=1:duration=6",
+         "-c:v", "flv1", "-r", "1", str(source)],
+        check=True, stdin=subprocess.DEVNULL, capture_output=True,
+    )
+    from amberkit.probe import probe_media
+
+    info = probe_media(source)
+    assert 0 < info.frame_rate < 120, (
+        f"frame rate {info.frame_rate} looks like a time-base artifact, "
+        f"not a real rate"
+    )
