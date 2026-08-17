@@ -72,6 +72,37 @@ pub unsafe extern "C" fn amber_open(
     }
 }
 
+/// Read a movie's declared stage size without building a player.
+///
+/// Lets the plugin size its render target from the SWF's own stage rather than
+/// guessing or opening twice. Returns false on failure.
+///
+/// # Safety
+/// `path` must be a valid NUL-terminated UTF-8 string; `width_out` and
+/// `height_out` must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn amber_probe_size(
+    path: *const c_char,
+    width_out: *mut u32,
+    height_out: *mut u32,
+) -> bool {
+    if path.is_null() || width_out.is_null() || height_out.is_null() {
+        return false;
+    }
+    let path = match CStr::from_ptr(path).to_str() {
+        Ok(text) => PathBuf::from(text),
+        Err(_) => return false,
+    };
+    match player::probe_stage_size(&path) {
+        Ok((width, height)) => {
+            *width_out = width;
+            *height_out = height;
+            true
+        }
+        Err(_) => false,
+    }
+}
+
 /// # Safety
 /// `handle` must have come from `amber_open` and not been closed already.
 #[no_mangle]

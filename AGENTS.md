@@ -8,11 +8,13 @@ this is the *why*, plus what is genuinely verified and what is not.
 Legacy Flash (`.swf`) and Flash Video (`.flv`) converted into codecs Resolume
 plays natively. Started 2026-08-17. Intended **PUBLIC MIT**.
 
-Two phases, and only the first exists:
+Two phases, both now exist:
 
-1. **The converter** (done) — a Python CLI in `tools/`, driving the operator's
-   own ffmpeg and Ruffle exporter as subprocesses.
-2. **The FFGL plugin** (not started) — live playback inside Resolume.
+1. **The converter** — a Python CLI in `tools/`, driving the operator's own
+   ffmpeg and Ruffle exporter as subprocesses.
+2. **The FFGL plugin** — an `FF_SOURCE` that embeds Ruffle and plays SWFs live
+   on a Resolume layer. Builds; renders correctly in a real GL context; **has
+   never been loaded into Resolume.**
 
 ## The architectural decision everything else follows from
 
@@ -93,6 +95,98 @@ not provide in the right width. Rebuilt from the declared file length.
 **Homebrew Python is PEP 668 managed** — `pip install pytest` fails. `verify.sh`
 creates `.venv` itself.
 
+## The plugin
+
+`source/amber_core/` is a Rust staticlib embedding `ruffle_core` +
+`ruffle_render_wgpu`, **pinned to git rev `ae0ba6d`** — Ruffle offers no API
+stability whatsoever, so this is the same discipline the fleet applies to the
+FFGL SDK at `b1afaf9`. It exposes a small C ABI (`source/AmberCore.h`,
+hand-written; change one side and you must change the other). `source/Plugin.cpp`
+is the FFGL side.
+
+**The frame crosses from Metal to OpenGL through system memory.** Ruffle renders
+via wgpu, FFGL is OpenGL, and there is no cheap way to hand a Metal texture to a
+GL context the host owns. Flash is small by construction, so a 550x400 readback
+is under a megabyte — the same shape as cartridge's `pixels` path. An IOSurface
+would buy little and be macOS-only.
+
+**Every call into Rust is `catch_unwind`-guarded.** Ruffle panics are a normal
+failure mode for content it dislikes, and a panic crossing `extern "C"` is
+undefined behaviour — in-process that means taking Resolume down mid-show. A
+guard is not a process boundary, though: **content that hard-crashes Ruffle still
+takes Resolume with it.** cartridge's out-of-process helper is the answer and
+does not exist here yet.
+
+### Four things that each produced a frozen or wrong picture while every check passed
+
+**`preload()` must run before every frame, not once.** SWF tags load
+progressively; without it the timeline advances a few frames and stops forever.
+
+**Play must be re-asserted every advance.** Flash content stops itself
+constantly — a `stop()` on the root, a preloader waiting on a byte count that
+never moves because the file came off local disk in one go, a click-to-play gate
+expecting a mouse the plugin cannot deliver. Forcing play once at open advanced
+badger.swf 7 frames and then froze on a single badger.
+
+**`Player::tick()` is the WRONG API here, and this is the subtle one.** It ends
+by correcting its own accumulator against the audio clock:
+
+    frame_accumulator += audio_manager.audio_skew_time(..)
+
+amber has no audio by construction — FFGL provides no audio path at all, so the
+player runs on a null audio backend. For content whose timeline is synced to a
+stream sound, which badger.swf and most music-driven Flash is, that correction is
+computed against a clock that never advances and **cancels the time just added**.
+Measured: 120 ticks, 7 distinct frames, then a permanently frozen picture. amber
+owns the accumulator and calls `run_frame()` directly, so playback depends only
+on wall time. Ruffle's own exporter does the same.
+
+**Ruffle's rows are top-first; GL's are bottom-first.** Uploading straight
+through renders the movie upside down and correct in every other respect — right
+size, fully opaque, changing over time, passing every assertion a harness can
+make without looking at it. `Plugin.cpp`'s fragment shader flips V. This is the
+third conflicting idea of row 0 in the fleet; cartridge documents the same
+collision.
+
+### The double-render guard
+
+Resolume renders the same instant more than once — preview, program output, clip
+thumbnail. A stateful player that stepped on every render would run at double or
+triple speed **depending on which windows the operator has open**, which is
+miserable to diagnose from a bug report. Guarded twice: the plugin only computes
+a positive elapsed time from a moving host clock, and `amber_advance` refuses a
+non-positive dt again on its own side. `ambergl` asserts it. The same defence is
+documented at length in coinop's `Sim.h`.
+
+`hostTime`'s units are not specified by FFGL and hosts disagree, so the scale is
+inferred once from the first plausible delta — same approach as coinop.
+
+## Verifying the plugin without Resolume
+
+**Resolume's GUI must not be driven with synthesized input.** Clicks on its
+custom-drawn UI do not register, and synthesized keystrokes reach the composition
+as clip triggers — this has modified a live project before. Two harnesses
+instead, and they cover different halves:
+
+- `./build/ambergl <file.swf>` — links the plugin class directly into a real CGL
+  4.1 context. Covers the render path, the double-render guard, and **both aspect
+  branches** (a sign error in letterbox arithmetic is invisible at one aspect
+  ratio only). Cannot see registration.
+- `oxbow probe build/Amber.bundle` — loads the real bundle through a real FFGL
+  host and enumerates it. This is what proves `plugMain` is exported and the
+  plugin actually registers, which a directly-linked harness cannot.
+
+**`oxbow selftest` cannot drive amber**, because its `--set` routes every
+assignment through `setParamFloat`, including `FF_TYPE_FILE` ones — so the movie
+path never arrives and the layer is correctly transparent. That is an oxbow
+limitation worth reporting upstream; it also stops oxbow testing cartridge's
+Core/Content parameters.
+
+Check the bundle by hand after any link change:
+
+    nm -gU build/Amber.bundle/Contents/MacOS/Amber | grep plugMain
+    lipo -archs build/Amber.bundle/Contents/MacOS/Amber
+
 ## Layout
 
 ```
@@ -105,9 +199,25 @@ tools/amberkit/
   cli.py             doctor / info / convert
 tests/               34 tests; make_fixtures.py synthesises real SWF bytes
 tools/verify.sh      the whole pass
+
+source/amber_core/   Rust: Ruffle embedded behind a C ABI (pinned ae0ba6d)
+source/AmberCore.h   the C ABI, hand-written -- keep in step with lib.rs
+source/Plugin.cpp    the FFGL source plugin
+source/SourcePlugin.cpp  registration ONLY -- see below
+tools/ambergl/       the GL harness
+external/ffgl/       Resolume FFGL SDK, pinned b1afaf9
 ```
 
-`source/` and `docs/` are empty and reserved for the FFGL plugin.
+**`FFGLSDK.cpp` is an umbrella that `#include`s every other SDK .cpp.** Compiling
+the rest alongside it defines every symbol twice and fails the link with several
+hundred duplicates. It is the only SDK source in CMakeLists.
+
+**`SourcePlugin.cpp` holds the registration and nothing else.**
+`CFFGLPluginInfo` registers from a file-scope constructor nothing references by
+name, so from a STATIC archive the linker may drop the whole translation unit,
+giving a bundle that loads, exports `plugMain`, and reports that it contains no
+plugins. Everything is compiled into one target here, which removes the archive
+and with it the trap.
 
 ## Test corpus — deliberately not in the repo
 

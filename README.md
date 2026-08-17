@@ -85,24 +85,47 @@ For `.swf` this costs nothing at all — Flash is vector, so Ruffle simply
 rasterises straight to a legal size. For `.flv` the frames are raster and have
 to be resampled (`--fit scale`, the default) or padded (`--fit pad`).
 
-## What comes next
+## The live plugin
 
-The converter is phase one. The intended phase two is an FFGL source plugin
-that plays this content live inside Resolume — the same shape as
-[cartridge](../cartridge), including its split between an in-process bundle and
-an out-of-process helper so a decoder crash cannot take Resolume down with it.
-That plugin does not exist yet. See `AGENTS.md` for the design constraints
-already established, including the one that matters most: **FFGL has no audio
-path at all**, so anything amber ever plays live will be silent.
+`.swf` files can also be played **live on a Resolume layer**, with the timeline
+and ActionScript actually running, rather than converted ahead of time. amber
+builds an FFGL `FF_SOURCE` that embeds [Ruffle](https://ruffle.rs).
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+cmake --install build     # -> ~/Library/Graphics/FreeFrame Plug-Ins
+```
+
+Parameters: **Movie** (the .swf), **Run**, **Restart**, **Speed**, **Scaling**
+(Fit / Fill / Stretch), **Smoothing**.
+
+**It has never been loaded into Resolume.** It builds, registers correctly in a
+real FFGL host, and renders correctly in a real GL context — but the last step
+has not been taken. Two further limits worth knowing:
+
+- **There is no audio.** FFGL provides no audio path at all, so a live Flash
+  clip is silent no matter what it contains. The converter has the same limit.
+- **Ruffle runs in Resolume's process.** Every call into it is guarded, which
+  turns most bad content into a black layer rather than a crash — but a guard is
+  not a process boundary, and content that hard-crashes Ruffle takes Resolume
+  with it. The out-of-process helper that [cartridge](../cartridge) grew for
+  exactly this reason does not exist here yet.
+
+Live playback is `.swf` only; `.flv` goes through the converter.
 
 ## Verification
 
 ```bash
-tools/verify.sh
+tools/verify.sh                                  # converter: 34 tests
+./build/ambergl ~/clips/badger.swf               # plugin, in a real GL context
+oxbow probe build/Amber.bundle                   # plugin, in a real FFGL host
 ```
 
-34 tests. The codec-constraint tests re-derive the DXV and Hap dimension rules
-from the real encoder rather than asserting a table against itself.
+The codec-constraint tests re-derive the DXV and Hap dimension rules from the
+real encoder rather than asserting a table against itself. `ambergl` covers the
+render path and the double-render guard; `oxbow probe` covers registration,
+which a directly-linked harness cannot see.
 
 ## Licence
 

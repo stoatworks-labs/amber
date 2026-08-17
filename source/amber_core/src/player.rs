@@ -61,6 +61,23 @@ pub struct AmberPlayer {
     accumulator: Mutex<f64>,
 }
 
+/// Read a movie's declared stage size without building a player.
+///
+/// The plugin needs this before it can size a render target, and building a
+/// throwaway player to ask would mean creating a wgpu device per open. Parsing
+/// the header is essentially free by comparison.
+pub fn probe_stage_size(path: &Path) -> Result<(u32, u32), String> {
+    catch_unwind(AssertUnwindSafe(|| {
+        let movie = movie_from_path(path, None).map_err(|e| format!("could not read SWF: {e}"))?;
+        // Ruffle reports the stage in twips; a stage smaller than a pixel is
+        // not usable, so both axes are floored at 1.
+        let width = movie.width().to_pixels().round().max(1.0) as u32;
+        let height = movie.height().to_pixels().round().max(1.0) as u32;
+        Ok((width, height))
+    }))
+    .unwrap_or_else(|_| Err(format!("Ruffle panicked while probing {}", path.display())))
+}
+
 impl AmberPlayer {
     /// Open an SWF and build a player rendering at `width` x `height`.
     ///
