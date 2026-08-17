@@ -12,3 +12,4 @@ tests/fixtures/
 corpus/
 *.swf
 *.flv
+source/amber_core/target/

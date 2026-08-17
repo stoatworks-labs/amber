@@ -1,0 +1,36 @@
+[package]
+name = "amber_core"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+# staticlib so the whole Flash player links into a single self-contained FFGL
+# bundle with nothing to install alongside it. rlib as well so the Rust-side
+# test harness can link the same code without going through the C ABI.
+[lib]
+name = "amber_core"
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+# Ruffle publishes nothing usable to crates.io and explicitly offers no API
+# stability, so the dependency is a PINNED git rev. This is the same discipline
+# the fleet already applies to the FFGL SDK at b1afaf9: a moving upstream on an
+# unstable API turns every unrelated rebuild into a potential breakage.
+#
+# Updating the pin is a deliberate act -- rebuild, run tools/verify.sh, and
+# render a known SWF before trusting it.
+ruffle_core = { git = "https://github.com/ruffle-rs/ruffle", rev = "ae0ba6d8217d81f9032f9073b7c1f738f36a7572", features = ["default_font"] }
+ruffle_render_wgpu = { git = "https://github.com/ruffle-rs/ruffle", rev = "ae0ba6d8217d81f9032f9073b7c1f738f36a7572" }
+ruffle_render = { git = "https://github.com/ruffle-rs/ruffle", rev = "ae0ba6d8217d81f9032f9073b7c1f738f36a7572" }
+
+futures = "0.3"
+
+[[bin]]
+name = "ambertest"
+path = "src/bin/ambertest.rs"
+
+[profile.release]
+# Ruffle is large; without this the bundle is enormous and slow to link.
+opt-level = 3
+lto = "thin"
