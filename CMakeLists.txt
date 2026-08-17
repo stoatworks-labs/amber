@@ -96,20 +96,36 @@ if(APPLE AND AMBER_UNIVERSAL)
         VERBATIM
     )
 else()
+    # An explicit cargo target triple, when the host default is not what is
+    # wanted. The Windows build VM is ARM64 Windows, so a bare `cargo build`
+    # there produces an ARM64 staticlib while CMake is building an x64 DLL --
+    # which links with nothing but LNK4272 ("library machine type 'ARM64'
+    # conflicts with target machine type 'x64'") followed by every symbol
+    # unresolved. cargo puts a cross-compiled artefact under target/<triple>/,
+    # so the path has to change with it.
+    set(AMBER_CARGO_TARGET "" CACHE STRING "cargo target triple (blank = host default)")
+
+    if(AMBER_CARGO_TARGET STREQUAL "")
+        set(AMBER_CARGO_TARGET_DIR ${AMBER_CORE_DIR}/target/${AMBER_CARGO_PROFILE_DIR})
+        set(AMBER_CARGO_TARGET_ARG "")
+    else()
+        set(AMBER_CARGO_TARGET_DIR
+            ${AMBER_CORE_DIR}/target/${AMBER_CARGO_TARGET}/${AMBER_CARGO_PROFILE_DIR})
+        set(AMBER_CARGO_TARGET_ARG --target ${AMBER_CARGO_TARGET})
+    endif()
+
     # cargo names a staticlib `libfoo.a` everywhere except MSVC, where it is
     # `foo.lib`. Getting this wrong produces a configure that succeeds and a
     # link that cannot find the library.
     if(MSVC)
-        set(AMBER_CORE_LIB
-            ${AMBER_CORE_DIR}/target/${AMBER_CARGO_PROFILE_DIR}/amber_core.lib)
+        set(AMBER_CORE_LIB ${AMBER_CARGO_TARGET_DIR}/amber_core.lib)
     else()
-        set(AMBER_CORE_LIB
-            ${AMBER_CORE_DIR}/target/${AMBER_CARGO_PROFILE_DIR}/libamber_core.a)
+        set(AMBER_CORE_LIB ${AMBER_CARGO_TARGET_DIR}/libamber_core.a)
     endif()
 
     add_custom_command(
         OUTPUT ${AMBER_CORE_LIB}
-        COMMAND cargo build ${AMBER_CARGO_FLAGS}
+        COMMAND cargo build ${AMBER_CARGO_FLAGS} ${AMBER_CARGO_TARGET_ARG}
         WORKING_DIRECTORY ${AMBER_CORE_DIR}
         # Depending on the sources rather than always rerunning keeps an
         # unchanged Rust tree from relinking a 185MB archive on every C++ edit.
@@ -195,6 +211,15 @@ else()
 endif()
 
 if(WIN32)
+    # FFGL's headers `#include <GL/glew.h>` on Windows, where there is no system
+    # OpenGL header set the way macOS has one. GLEW comes from vcpkg, static so
+    # the plugin does not acquire an external glew32.dll runtime dependency that
+    # an operator would have to install alongside it. The `-md` half of
+    # `x64-windows-static-md` keeps the dynamic CRT, which is what the rest of
+    # the toolchain uses.
+    find_package(GLEW REQUIRED)
+    target_link_libraries(AmberSource PRIVATE GLEW::GLEW)
+
     # The Rust standard library and wgpu's D3D12 backend both pull in system
     # libraries that nothing in the C++ half references, so the linker has to be
     # told about them explicitly. Omitting any one of these fails at link time
