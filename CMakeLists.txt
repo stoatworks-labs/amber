@@ -15,15 +15,21 @@ set(AMBER_VERSION "0.1.0")
 # the first target is created -- setting it later is silently ignored and
 # produces an arm64-only binary the build log still calls a success.
 #
-# amber is arm64-only for now, deliberately. A universal build needs the Rust
-# staticlib built for BOTH targets and lipo'd together, which is a real amount
-# of machinery for a plugin that has never been loaded into Resolume even once.
-# Arena on the development machine runs native arm64. Revisit before release.
+# Universal by default so one bundle loads in both the Apple Silicon and the
+# Intel build of Resolume. -DAMBER_UNIVERSAL=OFF gives a much faster arm64-only
+# dev build -- the Rust half has to be compiled twice for a universal one, and
+# Ruffle is not small.
 #
 # Verify with `lipo -archs`, never with the build log.
 # ---------------------------------------------------------------------------
+option(AMBER_UNIVERSAL "Build a universal macOS binary (arm64 + x86_64)" ON)
+
 if(APPLE AND NOT CMAKE_OSX_ARCHITECTURES)
-    set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "" FORCE)
+    if(AMBER_UNIVERSAL)
+        set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
+    else()
+        set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "" FORCE)
+    endif()
 endif()
 
 set(CMAKE_CXX_STANDARD 17)
@@ -64,22 +70,55 @@ else()
     set(AMBER_CARGO_FLAGS --release)
 endif()
 
-set(AMBER_CORE_LIB
-    ${AMBER_CORE_DIR}/target/${AMBER_CARGO_PROFILE_DIR}/libamber_core.a)
+set(AMBER_CORE_SOURCES
+    ${AMBER_CORE_DIR}/src/lib.rs
+    ${AMBER_CORE_DIR}/src/player.rs
+    ${AMBER_CORE_DIR}/Cargo.toml)
 
-add_custom_command(
-    OUTPUT ${AMBER_CORE_LIB}
-    COMMAND cargo build ${AMBER_CARGO_FLAGS}
-    WORKING_DIRECTORY ${AMBER_CORE_DIR}
-    # Depending on the sources rather than always rerunning keeps an unchanged
-    # Rust tree from relinking a 185MB archive on every C++ edit.
-    DEPENDS
-        ${AMBER_CORE_DIR}/src/lib.rs
-        ${AMBER_CORE_DIR}/src/player.rs
-        ${AMBER_CORE_DIR}/Cargo.toml
-    COMMENT "Building amber_core (Ruffle) with cargo"
-    VERBATIM
-)
+if(APPLE AND AMBER_UNIVERSAL)
+    # cargo cannot emit a universal staticlib, so each architecture is built
+    # separately and `lipo -create` glues the two archives together. The linker
+    # then picks the right slice per architecture while building the universal
+    # bundle. Doing it the other way round -- one cargo run, lipo at the end --
+    # is not possible: there is no universal target triple.
+    set(AMBER_CORE_LIB ${CMAKE_CURRENT_BINARY_DIR}/libamber_core_universal.a)
+    set(AMBER_CORE_ARM ${AMBER_CORE_DIR}/target/aarch64-apple-darwin/${AMBER_CARGO_PROFILE_DIR}/libamber_core.a)
+    set(AMBER_CORE_X86 ${AMBER_CORE_DIR}/target/x86_64-apple-darwin/${AMBER_CARGO_PROFILE_DIR}/libamber_core.a)
+
+    add_custom_command(
+        OUTPUT ${AMBER_CORE_LIB}
+        COMMAND cargo build ${AMBER_CARGO_FLAGS} --target aarch64-apple-darwin
+        COMMAND cargo build ${AMBER_CARGO_FLAGS} --target x86_64-apple-darwin
+        COMMAND lipo -create ${AMBER_CORE_ARM} ${AMBER_CORE_X86} -output ${AMBER_CORE_LIB}
+        WORKING_DIRECTORY ${AMBER_CORE_DIR}
+        DEPENDS ${AMBER_CORE_SOURCES}
+        COMMENT "Building amber_core (Ruffle) for arm64 and x86_64, then lipo"
+        VERBATIM
+    )
+else()
+    # cargo names a staticlib `libfoo.a` everywhere except MSVC, where it is
+    # `foo.lib`. Getting this wrong produces a configure that succeeds and a
+    # link that cannot find the library.
+    if(MSVC)
+        set(AMBER_CORE_LIB
+            ${AMBER_CORE_DIR}/target/${AMBER_CARGO_PROFILE_DIR}/amber_core.lib)
+    else()
+        set(AMBER_CORE_LIB
+            ${AMBER_CORE_DIR}/target/${AMBER_CARGO_PROFILE_DIR}/libamber_core.a)
+    endif()
+
+    add_custom_command(
+        OUTPUT ${AMBER_CORE_LIB}
+        COMMAND cargo build ${AMBER_CARGO_FLAGS}
+        WORKING_DIRECTORY ${AMBER_CORE_DIR}
+        # Depending on the sources rather than always rerunning keeps an
+        # unchanged Rust tree from relinking a 185MB archive on every C++ edit.
+        DEPENDS ${AMBER_CORE_SOURCES}
+        COMMENT "Building amber_core (Ruffle) with cargo"
+        VERBATIM
+    )
+endif()
+
 add_custom_target(amber_core_build DEPENDS ${AMBER_CORE_LIB})
 
 # ---------------------------------------------------------------------------
@@ -152,6 +191,20 @@ else()
     set_target_properties(AmberSource PROPERTIES
         OUTPUT_NAME "Amber"
         PREFIX ""
+    )
+endif()
+
+if(WIN32)
+    # The Rust standard library and wgpu's D3D12 backend both pull in system
+    # libraries that nothing in the C++ half references, so the linker has to be
+    # told about them explicitly. Omitting any one of these fails at link time
+    # with a wall of unresolved externals from inside Rust, which reads as a
+    # broken staticlib rather than a missing -l.
+    target_link_libraries(AmberSource PRIVATE
+        opengl32
+        ws2_32 userenv bcrypt ntdll advapi32 secur32
+        d3d12 dxgi d3dcompiler
+        propsys runtimeobject
     )
 endif()
 

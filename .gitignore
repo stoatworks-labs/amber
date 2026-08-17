@@ -13,3 +13,5 @@ corpus/
 *.swf
 *.flv
 source/amber_core/target/
+build-universal/
+dist-release/

@@ -2,11 +2,11 @@
 
 > This is an AI-assisted project — the code was written with [Claude Code](https://claude.com/claude-code).
 > The converter has been run end to end against real 2003-era Flash and against
-> synthesised FLV files, and its output verified frame-accurate by decoding it
-> again and comparing pixels. The live plugin builds, registers correctly in a
-> real FFGL host, and renders correctly in a real GL context. **Neither has ever
-> been loaded into Resolume**, and no real-world FLV — as opposed to one
-> synthesised by ffmpeg — has been converted.
+> real-world FLV in all three of its common codecs, with the output verified
+> frame-accurate by decoding it again and comparing pixels. **The plugin has been
+> confirmed working in Resolume Arena on Apple Silicon.** Its Intel slice has
+> never been run in an Intel Resolume, and the Windows build is new and untested
+> in a host.
 
 Legacy Flash content, made playable in Resolume.
 
@@ -118,17 +118,20 @@ overlay: Ruffle implements Flash's own `wmode=transparent`, so everything the
 movie does not draw comes through clear and the layers underneath show. Turn it
 off to get the movie's declared stage colour behind it instead.
 
-**It has never been loaded into Resolume.** It builds, registers correctly in a
-real FFGL host, and renders correctly in a real GL context — but the last step
-has not been taken. Two further limits worth knowing:
+**Confirmed working in Resolume Arena on Apple Silicon.** Three limits are worth
+knowing before you rely on it:
 
 - **There is no audio.** FFGL provides no audio path at all, so a live Flash
   clip is silent no matter what it contains. The converter has the same limit.
 - **Ruffle runs in Resolume's process.** Every call into it is guarded, which
   turns most bad content into a black layer rather than a crash — but a guard is
   not a process boundary, and content that hard-crashes Ruffle takes Resolume
-  with it. The out-of-process helper that [cartridge](../cartridge) grew for
-  exactly this reason does not exist here yet.
+  with it. An out-of-process helper, like the one
+  [cartridge](https://github.com/stoatworks-labs/cartridge) grew for exactly this
+  reason, does not exist here yet.
+- **Only the Apple Silicon slice has been run in a host.** The bundle is
+  universal and the Windows build exists, but neither the Intel slice nor the
+  Windows DLL has been loaded into a Resolume yet.
 
 Live playback is `.swf` only; `.flv` goes through the converter.
 
