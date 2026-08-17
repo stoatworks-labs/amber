@@ -129,7 +129,7 @@ Ruffle, and the converter says so instead of quietly handing back an opaque clip
 ## Verification
 
 ```bash
-tools/verify.sh                                  # converter: 34 tests
+tools/verify.sh                                  # converter + fixtures: 39 tests
 ./build/ambergl ~/clips/badger.swf               # plugin, in a real GL context
 oxbow probe build/Amber.bundle                   # plugin, in a real FFGL host
 ```
