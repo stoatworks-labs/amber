@@ -101,9 +101,11 @@ def _command_info(args: argparse.Namespace) -> int:
                 status = 1
                 continue
             alpha = " +alpha" if info.has_alpha else ""
+            # 0 means the container gave nothing trustworthy -- see probe_media.
+            rate = f"{info.frame_rate:g}fps" if info.frame_rate > 0 else "unknown fps"
             print(
                 f"{path.name}: {info.codec}{alpha} {info.width}x{info.height} "
-                f"@ {info.frame_rate:g}fps {info.duration:.1f}s ({info.pix_fmt})"
+                f"@ {rate} {info.duration:.1f}s ({info.pix_fmt})"
             )
     return status
 
@@ -152,9 +154,10 @@ def _command_convert(args: argparse.Namespace) -> int:
             # is noticed for the first time on a wall.
             notes.append(f"resized {result.alignment.describe()}")
         suffix = ("  [" + "; ".join(notes) + "]") if notes else ""
+        rate = f"{result.frame_rate:g}fps" if result.frame_rate > 0 else "unknown fps"
         print(
             f"{source.name} -> {result.output.name}  "
-            f"{result.width}x{result.height} @ {result.frame_rate:g}fps  "
+            f"{result.width}x{result.height} @ {rate}  "
             f"{result.frames} frames  {size_mb:.1f}MB  [{result.profile.name}]{suffix}"
         )
 

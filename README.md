@@ -30,6 +30,7 @@ badger.swf -> badger.mov  544x400 @ 25fps  904 frames  15.2MB  [dxv]  [resized 5
 | Input | Path |
 |---|---|
 | `.flv` — Sorenson Spark, VP6, VP6-with-alpha, H.264, Screen Video | decoded by ffmpeg, transcoded directly |
+| a `vp6a` test file, if you need one | `tools/make_vp6a.py in.flv out.flv` |
 | `.swf` — vector Flash, ActionScript 1/2/3 | rendered by [Ruffle](https://ruffle.rs), then muxed |
 
 Output is chosen from what the source needs:

@@ -273,8 +273,8 @@ def probe_media(path: str | Path) -> MediaInfo:
             "-v", "error",
             "-select_streams", "v:0",
             "-show_entries",
-            "stream=codec_name,width,height,r_frame_rate,avg_frame_rate,pix_fmt,nb_frames"
-            ":format=duration",
+            "stream=codec_name,width,height,r_frame_rate,avg_frame_rate,time_base,"
+            "pix_fmt,nb_frames:format=duration",
             "-of", "json",
             str(path),
         ],
@@ -320,7 +320,32 @@ def probe_media(path: str | Path) -> MediaInfo:
     # cannot compute it -- a stream with no duration reports 0/0.
     r_rate = _parse_rate(stream.get("r_frame_rate", ""))
     avg_rate = _parse_rate(stream.get("avg_frame_rate", ""))
-    frame_rate = avg_rate if avg_rate > 0 else r_rate
+
+    # The container's tick rate -- the reciprocal of its time base. For FLV this
+    # is 1000, and an r_frame_rate that merely echoes it carries no information
+    # about the real frame rate at all.
+    tick_rate = 0.0
+    time_base = stream.get("time_base", "")
+    if "/" in time_base:
+        numerator, denominator = time_base.split("/", 1)
+        try:
+            if float(numerator):
+                tick_rate = float(denominator) / float(numerator)
+        except ValueError:
+            tick_rate = 0.0
+
+    if avg_rate > 0:
+        frame_rate = avg_rate
+    elif tick_rate and abs(r_rate - tick_rate) < 0.001:
+        # r_frame_rate is just the tick rate. Derive a real one if the pieces
+        # are there, and otherwise report 0 meaning "unknown" -- printing 1000
+        # for a ten-frame-per-second file is worse than admitting ignorance,
+        # because it is a number a user would act on.
+        frame_rate = (
+            nb_frames / duration if (nb_frames and duration > 0) else 0.0
+        )
+    else:
+        frame_rate = r_rate
 
     return MediaInfo(
         codec=stream.get("codec_name", "?"),

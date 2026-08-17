@@ -59,6 +59,10 @@ needs_ambertest = pytest.mark.skipif(
     not AMBERTEST.exists(),
     reason="amber_core not built (cd source/amber_core && cargo build --release)",
 )
+needs_vp6a = pytest.mark.skipif(
+    not (CORPUS / "barsandtone.flv").exists(),
+    reason="local corpus absent; barsandtone.flv is third-party and never committed",
+)
 needs_badger = pytest.mark.skipif(
     not (CORPUS / "badger.swf").exists(),
     reason="local corpus absent (badger.swf is not redistributable, so it is "
@@ -471,3 +475,117 @@ def test_frame_rate_prefers_the_measured_average(tmp_path):
         f"frame rate {info.frame_rate} looks like a time-base artifact, "
         f"not a real rate"
     )
+
+
+# --------------------------------------------------------------------------
+# vp6a -- VP6 with alpha, the case the whole alpha path exists for
+# --------------------------------------------------------------------------
+
+@needs_vp6a
+def test_make_vp6a_produces_a_real_alpha_stream(tmp_path):
+    """ffmpeg cannot encode VP6, so a vp6a fixture cannot be synthesised the way
+    every other fixture here is. It can however be ASSEMBLED: FLV codec 5 is
+    simply two VP6 bitstreams (colour, then alpha) with a 24-bit offset between
+    them, and the alpha plane is an ordinary VP6 stream decoded as greyscale.
+    """
+    sys.path.insert(0, str(REPO / "tools"))
+    from make_vp6a import convert as make_vp6a
+    from amberkit.probe import probe_media
+
+    output = tmp_path / "alpha.flv"
+    output.write_bytes(make_vp6a((CORPUS / "barsandtone.flv").read_bytes()))
+
+    info = probe_media(output)
+    assert info.codec == "vp6a"
+    assert info.pix_fmt.startswith("yuva")
+    assert info.has_alpha
+
+
+@needs_vp6a
+def test_vp6a_alpha_actually_varies(tmp_path):
+    """A declared alpha channel that is uniformly opaque would prove nothing."""
+    sys.path.insert(0, str(REPO / "tools"))
+    from make_vp6a import convert as make_vp6a
+
+    caps = _ffmpeg_or_skip()
+    source = tmp_path / "alpha.flv"
+    source.write_bytes(make_vp6a((CORPUS / "barsandtone.flv").read_bytes()))
+
+    raw = subprocess.run(
+        [caps.path, "-nostdin", "-v", "error", "-i", str(source), "-frames:v", "1",
+         "-f", "rawvideo", "-pix_fmt", "rgba", "-"],
+        stdin=subprocess.DEVNULL, capture_output=True,
+    ).stdout
+    alpha = raw[3::4]
+    assert len(set(alpha)) > 16, "alpha plane is nearly uniform, so it proves nothing"
+    assert min(alpha) < 64 and max(alpha) > 192, "alpha does not span a useful range"
+
+
+@needs_vp6a
+def test_vp6a_routes_to_an_alpha_profile_and_keeps_the_alpha(tmp_path):
+    """The end-to-end claim: real VP6-alpha in, transparency preserved out."""
+    sys.path.insert(0, str(REPO / "tools"))
+    from make_vp6a import convert as make_vp6a
+    from amberkit.convert import convert_flv
+
+    caps = _ffmpeg_or_skip()
+    if not caps.alpha_targets():
+        pytest.skip("this ffmpeg cannot encode any alpha-capable codec")
+
+    source = tmp_path / "alpha.flv"
+    source.write_bytes(make_vp6a((CORPUS / "barsandtone.flv").read_bytes()))
+
+    result = convert_flv(source, tmp_path / "out", caps)
+    assert result.profile.carries_alpha, f"chose {result.profile.name} for alpha content"
+    assert result.had_alpha
+
+    def alphas(path):
+        raw = subprocess.run(
+            [caps.path, "-nostdin", "-v", "error", "-i", str(path), "-frames:v", "1",
+             "-f", "rawvideo", "-pix_fmt", "rgba", "-"],
+            stdin=subprocess.DEVNULL, capture_output=True,
+        ).stdout
+        return raw[3::4]
+
+    before, after = alphas(source), alphas(result.output)
+    count = min(len(before), len(after))
+    assert count > 0
+    error = sum(abs(before[i] - after[i]) for i in range(0, count, 3))
+    mean = error / len(range(0, count, 3))
+    assert mean < 2.0, f"alpha degraded through conversion (mean error {mean:.2f})"
+
+
+@needs_vp6a
+def test_vp6a_refuses_dxv_unless_flattened(tmp_path):
+    sys.path.insert(0, str(REPO / "tools"))
+    from make_vp6a import convert as make_vp6a
+    from amberkit.convert import convert_flv
+
+    caps = _ffmpeg_or_skip()
+    source = tmp_path / "alpha.flv"
+    source.write_bytes(make_vp6a((CORPUS / "barsandtone.flv").read_bytes()))
+
+    with pytest.raises(ConvertError, match="cannot carry"):
+        convert_flv(source, tmp_path / "no", caps, requested_profile="dxv")
+
+    # --flatten is the deliberate escape hatch, and must work.
+    result = convert_flv(
+        source, tmp_path / "flat", caps, requested_profile="dxv", flatten=True
+    )
+    assert result.profile.name == "dxv"
+    assert result.had_alpha  # still reported, so the CLI can say ALPHA FLATTENED
+
+
+@needs_vp6a
+def test_unreliable_frame_rate_is_reported_as_unknown(tmp_path):
+    """FLV's r_frame_rate can be nothing but the container tick rate. Reporting
+    1000fps for such a file is worse than reporting nothing, because it is a
+    number someone would act on."""
+    sys.path.insert(0, str(REPO / "tools"))
+    from make_vp6a import convert as make_vp6a
+    from amberkit.probe import probe_media
+
+    source = tmp_path / "alpha.flv"
+    source.write_bytes(make_vp6a((CORPUS / "barsandtone.flv").read_bytes()))
+    rate = probe_media(source).frame_rate
+    assert rate == 0.0 or rate < 120, f"reported {rate}fps, which is a tick rate"

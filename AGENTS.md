@@ -110,6 +110,26 @@ neat divisor of it. Measured on a real bars-and-tone card: `r_frame_rate`
 1000/1, `avg_frame_rate` 10/1. `probe_media` prefers avg and falls back to r
 only when ffprobe cannot compute it (0/0 on a stream with no duration).
 
+**A `vp6a` fixture can be ASSEMBLED without a VP6 encoder** — `tools/make_vp6a.py`.
+This closed the last hole in the converter's verification. ffmpeg decodes VP6 but
+cannot encode it and no free VP6 encoder exists, so `vp6a` looked untestable. It
+is not: FLV codec 4 is VP6 and codec 5 is VP6-with-alpha, and the only difference
+is structural —
+
+    codec 4:  [frametype|4] [adjustment] <VP6 stream>
+    codec 5:  [frametype|5] [adjustment] [UI24 offset] <VP6 colour> <VP6 alpha>
+
+— because **the alpha plane is itself an ordinary VP6 stream**, decoded as
+greyscale. So a genuine `vp6a` file can be built from VP6 bitstreams that already
+exist, reusing each frame's colour stream as its own alpha plane. ffmpeg reports
+the result as `vp6a` / `yuva420p`, and it decodes to **132 distinct alpha values
+spanning 11–234**. Through `hap_alpha` the range is preserved exactly with a mean
+error of 0.05 (max 11, DXT5 block interpolation at a boundary).
+
+The alpha is correlated with luma rather than independent, and the file is not a
+sample of what a period authoring tool emitted. For "does the pipeline detect
+alpha, refuse DXV, and route to Hap Alpha without losing it", neither matters.
+
 **A sparse FLV is a real thing, not a conversion failure.** `barsandtone.flv` is
 six seconds long and contains exactly **two** video frames -- a static card held
 for the duration. A converter reporting "2 frames" for a 6s clip looks broken
