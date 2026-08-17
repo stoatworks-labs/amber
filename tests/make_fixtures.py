@@ -116,6 +116,60 @@ def build_swf(
     return prefix + struct.pack("<I", len(stream)) + props + stream
 
 
+def build_swf_showcase(
+    width: int = 960,
+    height: int = 540,
+    frames: int = 48,
+    frame_rate: float = 24.0,
+) -> bytes:
+    """Several overlapping rectangles on a transparent stage.
+
+    Exists so the project has demonstration content of its OWN. Every real Flash
+    file that would show amber off is somebody else's copyrighted work -- fine as
+    a local test file, not fine as promotional artwork on a public site, and the
+    fleet ships no third-party content by rule. This is generated, so it can go
+    anywhere.
+
+    No background colour tag is emitted at all, which combined with
+    `wmode=transparent` makes everything the shapes do not cover genuinely clear.
+    """
+    body = bytearray()
+    body += _encode_rect(0, width * TWIPS_PER_PIXEL, 0, height * TWIPS_PER_PIXEL)
+
+    integer = int(frame_rate)
+    fraction = int(round((frame_rate - integer) * 256)) & 0xFF
+    body += bytes([fraction, integer])
+    body += struct.pack("<H", frames)
+
+    # A stepped diagonal of blocks, each its own shape at its own depth.
+    palette = [
+        (0xE8, 0x3A, 0x3A), (0xE8, 0x8B, 0x3A), (0xE8, 0xD0, 0x3A),
+        (0x5A, 0xC8, 0x5A), (0x3A, 0xB0, 0xE8), (0x6A, 0x5A, 0xE8),
+        (0xC0, 0x4A, 0xC8),
+    ]
+    count = len(palette)
+    block_w = width // (count + 2)
+    block_h = height // 3
+
+    for index, colour in enumerate(palette):
+        x = (block_w + block_w // 3) * index + block_w // 2
+        y = (height - block_h) // 2 + int((index - count / 2) * block_h / 5)
+        body += _define_shape_rect(
+            index + 1,
+            x * TWIPS_PER_PIXEL, y * TWIPS_PER_PIXEL,
+            block_w * TWIPS_PER_PIXEL, block_h * TWIPS_PER_PIXEL,
+            colour,
+        )
+        body += _place_object2(index + 1, index + 1)
+
+    for _ in range(frames):
+        body += _tag(TAG_SHOW_FRAME)
+    body += _tag(TAG_END)
+
+    file_length = 8 + len(body)
+    return b"FWS" + bytes([6]) + struct.pack("<I", file_length) + bytes(body)
+
+
 def write_all(directory: Path) -> dict[str, Path]:
     """Write one fixture per compression plus a fractional-rate case."""
     directory.mkdir(parents=True, exist_ok=True)
@@ -143,6 +197,11 @@ def write_all(directory: Path) -> dict[str, Path]:
     shape = directory / "shape.swf"
     shape.write_bytes(build_swf_with_shape())
     written["shape.swf"] = shape
+
+    # Demonstration content the project owns outright -- see build_swf_showcase.
+    showcase = directory / "showcase.swf"
+    showcase.write_bytes(build_swf_showcase())
+    written["showcase.swf"] = showcase
     return written
 
 
