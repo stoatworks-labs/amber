@@ -64,6 +64,12 @@ unsigned int amber_total_frames( AmberHandle* handle );
 /// itself for many reasons and content that never starts looks like a broken
 /// plugin.
 bool amber_force_play( AmberHandle* handle );
+
+/// Render the stage with a transparent background -- Flash's own
+/// `wmode=transparent`, which Ruffle implements fully. Without it, content
+/// authored on a transparent stage arrives with an opaque rectangle behind it
+/// and covers every layer underneath.
+bool amber_set_transparent( AmberHandle* handle, bool transparent );
 bool amber_set_playing( AmberHandle* handle, bool playing );
 bool amber_set_viewport( AmberHandle* handle, unsigned int width, unsigned int height );
 

@@ -99,7 +99,12 @@ cmake --install build     # -> ~/Library/Graphics/FreeFrame Plug-Ins
 ```
 
 Parameters: **Movie** (the .swf), **Run**, **Restart**, **Speed**, **Scaling**
-(Fit / Fill / Stretch), **Smoothing**.
+(Fit / Fill / Stretch), **Smoothing**, **Transparent**.
+
+**Transparent is on by default**, and it is what makes Flash usable as an
+overlay: Ruffle implements Flash's own `wmode=transparent`, so everything the
+movie does not draw comes through clear and the layers underneath show. Turn it
+off to get the movie's declared stage colour behind it instead.
 
 **It has never been loaded into Resolume.** It builds, registers correctly in a
 real FFGL host, and renders correctly in a real GL context — but the last step
@@ -114,6 +119,12 @@ has not been taken. Two further limits worth knowing:
   exactly this reason does not exist here yet.
 
 Live playback is `.swf` only; `.flv` goes through the converter.
+
+**Only the plugin can do transparency, not the converter.** The converter drives
+Ruffle's `exporter` binary, which has no background option and always renders
+opaque, so `.swf` files needing a transparent background have to be played live
+rather than converted. That is a gap in the exporter's CLI rather than in
+Ruffle, and the converter says so instead of quietly handing back an opaque clip.
 
 ## Verification
 

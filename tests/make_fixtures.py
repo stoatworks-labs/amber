@@ -136,7 +136,162 @@ def write_all(directory: Path) -> dict[str, Path]:
         path = directory / name
         path.write_bytes(build_swf(**kwargs))
         written[name] = path
+
+    # The only fixture that draws anything, and therefore the only one against
+    # which transparency is measurable: a rectangle over a quarter of the stage,
+    # so `wmode=transparent` must leave the other three quarters clear.
+    shape = directory / "shape.swf"
+    shape.write_bytes(build_swf_with_shape())
+    written["shape.swf"] = shape
     return written
+
+
+class _BitWriter:
+    """MSB-first bit writer. SWF shape records are bit-packed and unaligned."""
+
+    def __init__(self) -> None:
+        self._bits: list[int] = []
+
+    def write(self, value: int, width: int) -> None:
+        for shift in range(width - 1, -1, -1):
+            self._bits.append((value >> shift) & 1)
+
+    def write_signed(self, value: int, width: int) -> None:
+        self.write(value & ((1 << width) - 1), width)
+
+    def align(self) -> bytes:
+        bits = list(self._bits)
+        while len(bits) % 8:
+            bits.append(0)
+        out = bytearray()
+        for index in range(0, len(bits), 8):
+            byte = 0
+            for bit in bits[index : index + 8]:
+                byte = (byte << 1) | bit
+            out.append(byte)
+        return bytes(out)
+
+
+def _define_shape_rect(shape_id: int, x: int, y: int, w: int, h: int,
+                       colour: tuple[int, int, int]) -> bytes:
+    """A DefineShape tag holding one solid rectangle, in twips.
+
+    Hand-built rather than taken from a real file so the fixture stays
+    redistributable -- no third-party Flash is committed to this repo. It is a
+    real DefineShape, not a stub: correct bit-packed RECT, a real fill style
+    array, and four genuine StraightEdgeRecords.
+    """
+    body = bytearray()
+    body += struct.pack("<H", shape_id)
+    # ShapeBounds.
+    body += _encode_rect(x, x + w, y, y + h)
+
+    # FillStyleArray: one solid RGB fill. LineStyleArray: none.
+    body += bytes([1])          # fill style count
+    body += bytes([0x00])       # type 0x00 = solid
+    body += bytes(colour)       # RGB (DefineShape 1/2 use RGB, not RGBA)
+    body += bytes([0])          # line style count
+
+    writer = _BitWriter()
+    fill_bits, line_bits = 1, 0
+    writer.write(fill_bits, 4)
+    writer.write(line_bits, 4)
+
+    # StyleChangeRecord: move to the origin and select the fill.
+    #
+    # The path below is traced clockwise in SWF coordinates (y increases
+    # downward), which puts the interior on the RIGHT of each edge -- so the
+    # fill belongs to fillStyle1, not fillStyle0. Setting the wrong side gives a
+    # perfectly valid shape enclosing nothing, which renders as an empty stage
+    # with no error anywhere.
+    writer.write(0, 1)          # TypeFlag: 0 = non-edge record
+    writer.write(0, 1)          # StateNewStyles
+    writer.write(0, 1)          # StateLineStyle
+    writer.write(1, 1)          # StateFillStyle1
+    writer.write(0, 1)          # StateFillStyle0
+    writer.write(1, 1)          # StateMoveTo
+
+    # Field order after the flags is fixed: MoveTo, then FillStyle0, then
+    # FillStyle1, then LineStyle.
+    move_bits = 20              # a 5-bit field, so up to 31 is legal
+    writer.write(move_bits, 5)
+    writer.write_signed(x, move_bits)
+    writer.write_signed(y, move_bits)
+    writer.write(1, fill_bits)  # fillStyle1 -> index 1
+
+    # Four StraightEdgeRecords tracing the rectangle.
+    #
+    # NumBits is a FOUR-bit field holding (actual bits - 2), so the widest edge
+    # it can describe is 17 bits. Asking for 20 writes 18 into four bits, which
+    # silently truncates and corrupts every edge that follows -- the shape then
+    # parses without complaint and draws nothing. 15 bits is signed +/-16383
+    # twips, comfortably past the 4000 a half-stage needs here.
+    edge_bits = 15
+    assert 2 <= edge_bits - 2 <= 15, "NumBits must fit in four bits"
+    for delta_x, delta_y in ((w, 0), (0, h), (-w, 0), (0, -h)):
+        writer.write(1, 1)                  # TypeFlag: edge
+        writer.write(1, 1)                  # StraightFlag
+        writer.write(edge_bits - 2, 4)      # NumBits, stored as actual-2
+        writer.write(1, 1)                  # GeneralLineFlag
+        writer.write_signed(delta_x, edge_bits)
+        writer.write_signed(delta_y, edge_bits)
+
+    # EndShapeRecord: a non-edge record with all five state flags clear.
+    writer.write(0, 6)
+
+    body += writer.align()
+    return _tag(2, bytes(body))  # tag 2 = DefineShape
+
+
+def _place_object2(shape_id: int, depth: int) -> bytes:
+    """PlaceObject2 with an identity matrix -- the shape carries its own
+    coordinates, so nothing needs transforming."""
+    flags = 0b0000_0110  # HasMatrix | HasCharacter
+    body = bytes([flags]) + struct.pack("<H", depth) + struct.pack("<H", shape_id)
+    # MATRIX: HasScale=0, HasRotate=0, TranslateBits=0 -> seven zero bits.
+    body += bytes([0x00])
+    return _tag(26, body)
+
+
+def build_swf_with_shape(
+    width: int = 400,
+    height: int = 300,
+    frame_rate: float = 12.0,
+    frames: int = 4,
+    background: tuple[int, int, int] = (0xFF, 0x00, 0x00),
+    fill: tuple[int, int, int] = (0x00, 0xFF, 0x00),
+) -> bytes:
+    """An SWF drawing one rectangle over a QUARTER of the stage.
+
+    This is the fixture transparency is actually testable against. A file that
+    draws nothing proves only that the clear colour changed, and real content
+    like badger.swf paints its own full-stage background so it can never show
+    transparency at all. Here three quarters of the stage are genuinely
+    untouched, so `wmode=transparent` must leave exactly that much clear.
+    """
+    body = bytearray()
+    body += _encode_rect(0, width * TWIPS_PER_PIXEL, 0, height * TWIPS_PER_PIXEL)
+
+    integer = int(frame_rate)
+    fraction = int(round((frame_rate - integer) * 256)) & 0xFF
+    body += bytes([fraction, integer])
+    body += struct.pack("<H", frames)
+
+    body += _tag(TAG_SET_BACKGROUND_COLOR, bytes(background))
+    body += _define_shape_rect(
+        1,
+        0, 0,
+        (width // 2) * TWIPS_PER_PIXEL,
+        (height // 2) * TWIPS_PER_PIXEL,
+        fill,
+    )
+    body += _place_object2(1, 1)
+    for _ in range(frames):
+        body += _tag(TAG_SHOW_FRAME)
+    body += _tag(TAG_END)
+
+    file_length = 8 + len(body)
+    return b"FWS" + bytes([6]) + struct.pack("<I", file_length) + bytes(body)
 
 
 if __name__ == "__main__":

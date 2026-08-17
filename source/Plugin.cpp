@@ -77,6 +77,7 @@ const char* kAboutText =
 	"amber " AMBER_VERSION "\n"
 	"Flash content as a live source.\n"
 	"Powered by Ruffle (ruffle.rs), MIT/Apache-2.0.\n"
+	"Transparent uses Flash's own wmode=transparent.\n"
 	"No audio: FFGL provides no audio path.";
 
 }  // namespace
@@ -102,6 +103,7 @@ AmberPlugin::AmberPlugin()
 	SetParamElementInfo( PT_SCALING, 2, "Stretch", 2.0f );
 
 	SetParamInfo( PT_SMOOTHING, "Smoothing", FF_TYPE_BOOLEAN, true );
+	SetParamInfo( PT_TRANSPARENT, "Transparent", FF_TYPE_BOOLEAN, true );
 
 	SetParamInfo( PT_ABOUT, "About", FF_TYPE_TEXT, kAboutText );
 }
@@ -183,6 +185,11 @@ void AmberPlugin::OpenMovie()
 		mLastError  = error;
 		return;
 	}
+
+	// Applied before the first advance so frame one is already correct; a movie
+	// that flashed its opaque stage colour for one frame on every trigger would
+	// be very visible on a layer.
+	amber_set_transparent( mPlayer, mTransparent );
 
 	mMovieWidth  = amber_width( mPlayer );
 	mMovieHeight = amber_height( mPlayer );
@@ -390,6 +397,12 @@ FFResult AmberPlugin::SetFloatParameter( unsigned int index, float value )
 		mSmoothing = value > 0.5f;
 		return FF_SUCCESS;
 
+	case PT_TRANSPARENT:
+		mTransparent = value > 0.5f;
+		if( mPlayer != nullptr )
+			amber_set_transparent( mPlayer, mTransparent );
+		return FF_SUCCESS;
+
 	default:
 		return FF_FAIL;
 	}
@@ -403,7 +416,8 @@ float AmberPlugin::GetFloatParameter( unsigned int index )
 	case PT_RESTART:   return 0.0f;
 	case PT_SPEED:     return mSpeed;
 	case PT_SCALING:   return static_cast< float >( static_cast< int >( mScaling ) );
-	case PT_SMOOTHING: return mSmoothing ? 1.0f : 0.0f;
+	case PT_SMOOTHING:   return mSmoothing ? 1.0f : 0.0f;
+	case PT_TRANSPARENT: return mTransparent ? 1.0f : 0.0f;
 	default:           return 0.0f;
 	}
 }

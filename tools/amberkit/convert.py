@@ -288,6 +288,7 @@ def convert_swf(
     max_frames: int | None = None,
     exporter: str | None = None,
     fit: str = "scale",
+    transparent: bool = False,
 ) -> ConversionResult:
     """Render an SWF through Ruffle, then mux the frames at the SWF's own rate."""
     exporter_path = exporter or find_ruffle_exporter()
@@ -303,8 +304,18 @@ def convert_swf(
     if header.frame_rate <= 0:
         raise ConvertError(f"{source.name}: header declares a frame rate of 0")
 
-    # The exporter renders opaque frames -- it has no background or
-    # transparency option -- so an SWF is never treated as having alpha.
+    # Ruffle's `exporter` binary has no background option, so the subprocess
+    # path can only ever produce opaque frames. Transparency is NOT a Ruffle
+    # limitation -- `wmode=transparent` is fully implemented, and amber's own
+    # in-process player uses it (see amber_core) -- it is a gap in the
+    # exporter's argument list. Until that is closed, asking for transparency
+    # here has to fail loudly rather than quietly hand back an opaque clip.
+    if transparent:
+        raise ConvertError(
+            "transparent SWF conversion is not available through Ruffle's "
+            "exporter, which has no background option and always renders "
+            "opaque. The live FFGL plugin does support it. See AGENTS.md."
+        )
     profile = choose_profile(False, caps, requested_profile)
     output = destination.with_suffix(profile.container)
     output.parent.mkdir(parents=True, exist_ok=True)

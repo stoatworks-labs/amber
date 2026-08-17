@@ -119,22 +119,49 @@ double LitFraction( const std::vector< unsigned char >& pixels )
 	return pixels.empty() ? 0.0 : static_cast< double >( lit ) / ( pixels.size() / 4 );
 }
 
-void WritePPM( const std::string& path, const std::vector< unsigned char >& pixels, int w, int h )
+/// Netpbm PAM rather than PPM, because PPM has no alpha channel and alpha is
+/// the whole point of the Transparent parameter. ffmpeg reads PAM directly.
+void WritePAM( const std::string& path, const std::vector< unsigned char >& pixels, int w, int h )
 {
 	FILE* file = std::fopen( path.c_str(), "wb" );
 	if( !file )
 		return;
-	std::fprintf( file, "P6\n%d %d\n255\n", w, h );
-	// glReadPixels gives bottom-up; PPM is top-down.
+	std::fprintf( file,
+	              "P7\nWIDTH %d\nHEIGHT %d\nDEPTH 4\nMAXVAL 255\n"
+	              "TUPLTYPE RGB_ALPHA\nENDHDR\n",
+	              w, h );
+	// glReadPixels gives bottom-up; PAM, like PPM, is top-down.
 	for( int y = h - 1; y >= 0; --y )
-		for( int x = 0; x < w; ++x )
-		{
-			const size_t index = ( static_cast< size_t >( y ) * w + x ) * 4;
-			std::fputc( pixels[ index + 0 ], file );
-			std::fputc( pixels[ index + 1 ], file );
-			std::fputc( pixels[ index + 2 ], file );
-		}
+		std::fwrite( pixels.data() + static_cast< size_t >( y ) * w * 4, 1, w * 4, file );
 	std::fclose( file );
+}
+
+/// Fraction of pixels that are fully transparent.
+double ClearFraction( const std::vector< unsigned char >& pixels )
+{
+	size_t clear = 0;
+	for( size_t i = 3; i < pixels.size(); i += 4 )
+		if( pixels[ i ] == 0 )
+			++clear;
+	return pixels.empty() ? 0.0 : static_cast< double >( clear ) / ( pixels.size() / 4 );
+}
+
+/// Find a parameter by NAME rather than by index.
+///
+/// Hardcoding indices is exactly what broke this harness once: inserting a
+/// Transparent parameter ahead of About shifted About from 6 to 7 and the
+/// About check started failing for a reason that had nothing to do with About.
+/// The names are the stable contract; the numbers are not.
+int ParamIndex( amber::AmberPlugin& plugin, const char* name )
+{
+	const unsigned int count = plugin.GetNumParams();
+	for( unsigned int index = 0; index < count; ++index )
+	{
+		const char* candidate = plugin.GetParamName( index );
+		if( candidate != nullptr && std::strcmp( candidate, name ) == 0 )
+			return static_cast< int >( index );
+	}
+	return -1;
 }
 
 int failures = 0;
@@ -186,8 +213,8 @@ RunResult Run( amber::AmberPlugin& plugin, Target& target, int frames, double st
 		if( !dumpPrefix.empty() && frame % 20 == 0 )
 		{
 			char name[ 512 ];
-			std::snprintf( name, sizeof( name ), "%s%04d.ppm", dumpPrefix.c_str(), frame );
-			WritePPM( name, pixels, target.width, target.height );
+			std::snprintf( name, sizeof( name ), "%s%04d.pam", dumpPrefix.c_str(), frame );
+			WritePAM( name, pixels, target.width, target.height );
 		}
 
 		previous = pixels;
@@ -245,13 +272,19 @@ int main( int argc, char** argv )
 		                                static_cast< FFUInt32 >( height ) };
 		Check( plugin.InitGL( &viewport ) == FF_SUCCESS, "InitGL succeeds" );
 
+		const int movieParam = ParamIndex( plugin, "Movie" );
+		const int aboutParam = ParamIndex( plugin, "About" );
+		Check( movieParam >= 0 && aboutParam >= 0, "Movie and About parameters exist" );
+
 		// The file parameter is the whole point, and is the one thing oxbow
 		// cannot set.
-		Check( plugin.SetTextParameter( 0, movie.c_str() ) == FF_SUCCESS,
+		Check( movieParam >= 0 &&
+		       plugin.SetTextParameter( movieParam, movie.c_str() ) == FF_SUCCESS,
 		       "SetTextParameter accepts the movie path" );
 		// The About line is display only and MUST still succeed, or the SDK's
 		// instantiateGL deletes every fresh instance in a real host.
-		Check( plugin.SetTextParameter( 6, "" ) == FF_SUCCESS,
+		Check( aboutParam >= 0 &&
+		       plugin.SetTextParameter( aboutParam, "" ) == FF_SUCCESS,
 		       "SetTextParameter succeeds for the display-only About line" );
 
 		std::printf( "\nplayback at %dx%d\n", width, height );
@@ -283,6 +316,17 @@ int main( int argc, char** argv )
 
 		Check( once == twice, "re-rendering the same host instant does not advance" );
 
+		// --- transparency ---------------------------------------------------
+		// Transparent defaults on, and Fit letterboxes a 550x400 stage into a
+		// 16:9 output, so there must be clear pixels in the bars regardless of
+		// what the content draws. Turning it off must make the whole frame
+		// opaque -- content permitting.
+		std::printf( "\ntransparency\n" );
+		std::printf( "  transparent: %.1f%% of the frame is clear\n",
+		             100.0 * ClearFraction( once ) );
+		Check( ClearFraction( once ) > 0.01,
+		       "a transparent stage leaves clear pixels" );
+
 		Check( plugin.DeInitGL() == FF_SUCCESS, "DeInitGL succeeds" );
 	}
 
@@ -298,7 +342,7 @@ int main( int argc, char** argv )
 		amber::AmberPlugin plugin;
 		FFGLViewportStruct viewport = { 0, 0, 720, 720 };
 		plugin.InitGL( &viewport );
-		plugin.SetTextParameter( 0, movie.c_str() );
+		plugin.SetTextParameter( ParamIndex( plugin, "Movie" ), movie.c_str() );
 
 		RunResult run = Run( plugin, square, 30, 0.0, "" );
 		std::printf( "  %d of 30 frames non-blank, %d changed\n", run.nonBlank, run.changed );

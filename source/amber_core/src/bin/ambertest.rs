@@ -20,10 +20,18 @@ fn main() -> Result<(), String> {
 
     let mut frames = 60u32;
     let mut seq: Option<String> = None;
+    let mut transparent = false;
+    let mut expect_motion = true;
     while let Some(flag) = args.next() {
         match flag.as_str() {
             "--frames" => frames = args.next().and_then(|v| v.parse().ok()).unwrap_or(60),
             "--seq" => seq = args.next(),
+            "--transparent" => transparent = true,
+            // Some content legitimately does not move -- the shape fixture is a
+            // single static rectangle, which is exactly what makes it a good
+            // transparency test. Without this the motion check would force
+            // every fixture to animate for no reason.
+            "--static" => expect_motion = false,
             other => return Err(format!("unknown flag {other}")),
         }
     }
@@ -41,6 +49,10 @@ fn main() -> Result<(), String> {
     );
 
     player.force_play();
+    if transparent {
+        player.set_transparent(true);
+        println!("stage: transparent (wmode=transparent)");
+    }
 
     let pixels = (player.width() * player.height() * 4) as usize;
     let mut buffer = vec![0u8; pixels];
@@ -96,16 +108,37 @@ fn main() -> Result<(), String> {
     }
 
     let elapsed = render_started.elapsed();
+    // Alpha census of the last frame. With an opaque stage every pixel is 255;
+    // with a transparent one the areas the movie never drew are 0. Reporting
+    // both numbers means "did transparency actually happen" is a measurement
+    // rather than an impression.
+    let fully_opaque = previous.chunks_exact(4).filter(|p| p[3] == 255).count();
+    let fully_clear = previous.chunks_exact(4).filter(|p| p[3] == 0).count();
+    let total = previous.len() / 4;
+
     println!(
         "rendered {frames} frames in {:?} ({:.1} fps), {non_blank} non-blank, {changed} changed",
         elapsed,
         frames as f64 / elapsed.as_secs_f64()
     );
+    println!(
+        "alpha: {:.1}% fully opaque, {:.1}% fully clear",
+        100.0 * fully_opaque as f64 / total as f64,
+        100.0 * fully_clear as f64 / total as f64
+    );
+
+    // Deliberately NOT asserted here: "transparent was requested, so some pixel
+    // must be clear". That is false for a large class of real content --
+    // badger.swf paints its own sky and grass across the whole stage, so a
+    // transparent stage is completely invisible in it and zero clear pixels is
+    // the correct answer. The harness reports the census; the expectation
+    // belongs to whoever knows what the file draws (see tests/test_amber.py,
+    // which asserts ~75% on the shape fixture and <1% on the badger).
 
     if non_blank == 0 {
         return Err("FAIL: every frame was a flat colour -- content never started".into());
     }
-    if changed == 0 {
+    if expect_motion && changed == 0 {
         return Err("FAIL: the picture never changed across the run".into());
     }
     println!("ambertest: OK");

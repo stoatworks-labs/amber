@@ -210,6 +210,21 @@ pub unsafe extern "C" fn amber_force_play(handle: *mut AmberHandle) -> bool {
     handle_ref!(handle, false).player.force_play()
 }
 
+/// Render the stage with a transparent background -- Flash's own
+/// `wmode=transparent`, which Ruffle implements fully. Without it, content
+/// authored on a transparent stage arrives with an opaque rectangle behind it
+/// and covers every layer underneath.
+///
+/// # Safety
+/// `handle` must be live.
+#[no_mangle]
+pub unsafe extern "C" fn amber_set_transparent(
+    handle: *mut AmberHandle,
+    transparent: bool,
+) -> bool {
+    handle_ref!(handle, false).player.set_transparent(transparent)
+}
+
 /// # Safety
 /// `handle` must be live.
 #[no_mangle]

@@ -293,6 +293,31 @@ impl AmberPlayer {
         .is_ok()
     }
 
+    /// Render the stage with a transparent background instead of its declared
+    /// background colour.
+    ///
+    /// This is Flash's own `wmode=transparent`, and Ruffle implements it fully:
+    /// `Player::render` clears to `Color::from_rgba(0)` rather than the stage
+    /// colour whenever the window mode is Transparent and the stage is not
+    /// fullscreen. Nothing had to be patched.
+    ///
+    /// It is worth being precise about that, because Ruffle's `exporter` tool
+    /// has no background option at all and it is easy to conclude from its CLI
+    /// that transparent rendering is unsupported. The gap is in the exporter's
+    /// argument list, not in Ruffle.
+    ///
+    /// For a VJ plugin this is the difference between Flash being usable as an
+    /// overlay and not: content authored on a transparent stage otherwise
+    /// arrives with an opaque white or coloured rectangle behind it, covering
+    /// every layer underneath.
+    pub fn set_transparent(&self, transparent: bool) -> bool {
+        catch_unwind(AssertUnwindSafe(|| {
+            let mut player = self.player.lock().unwrap();
+            player.set_window_mode(if transparent { "transparent" } else { "window" });
+        }))
+        .is_ok()
+    }
+
     /// Whether to re-assert play before every advance.
     ///
     /// Ruffle warns that forcing play "may break or alter content that expects

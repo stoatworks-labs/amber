@@ -81,6 +81,7 @@ private:
 		PT_SPEED,
 		PT_SCALING,
 		PT_SMOOTHING,
+		PT_TRANSPARENT,
 		PT_ABOUT,
 		PT_COUNT
 	};
@@ -114,6 +115,11 @@ private:
 	float mSpeed = 0.5f;  ///< 0..1 as the host sees it; 0.5 is 1.0x
 	Scaling mScaling = Scaling::Fit;
 	bool mSmoothing = true;
+	/// Flash's wmode=transparent. Default ON: a source plugin on a Resolume
+	/// layer is far more often wanted as an overlay than as a backdrop, and an
+	/// unwanted transparent background is trivially fixed by putting something
+	/// underneath, while an unwanted opaque one hides every layer below.
+	bool mTransparent = true;
 
 	// --- player ------------------------------------------------------------
 	// Declared by AmberCore.h, at global scope -- forward-declaring it inside

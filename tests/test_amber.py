@@ -35,9 +35,13 @@ from amberkit.convert import (  # noqa: E402
 )
 from amberkit.probe import ProbeError, find_ffmpeg, find_ruffle_exporter  # noqa: E402
 
-from make_fixtures import build_swf  # noqa: E402
+from make_fixtures import build_swf, build_swf_with_shape  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures"
+AMBERTEST = (
+    Path(__file__).parent.parent
+    / "source" / "amber_core" / "target" / "release" / "ambertest"
+)
 CORPUS = Path.home() / "Documents" / "Amber" / "corpus"
 
 
@@ -50,6 +54,10 @@ def _ffmpeg_or_skip():
 
 needs_ruffle = pytest.mark.skipif(
     find_ruffle_exporter() is None, reason="Ruffle exporter not built"
+)
+needs_ambertest = pytest.mark.skipif(
+    not AMBERTEST.exists(),
+    reason="amber_core not built (cd source/amber_core && cargo build --release)",
 )
 needs_badger = pytest.mark.skipif(
     not (CORPUS / "badger.swf").exists(),
@@ -360,3 +368,79 @@ def test_swf_converts_to_a_playable_clip(tmp_path):
     # And the output must be a legal DXV size, not the 550 the stage declares.
     assert is_legal(info.width, info.height, "dxv")
     assert info.width == 544
+
+
+# --------------------------------------------------------------------------
+# The shape fixture, and transparency
+# --------------------------------------------------------------------------
+
+def test_shape_fixture_is_a_readable_swf(tmp_path):
+    """The hand-built DefineShape must still parse as a valid SWF header."""
+    path = tmp_path / "shape.swf"
+    path.write_bytes(build_swf_with_shape(width=400, height=300, frame_rate=12.0))
+    header = swf_reader.read_header(path)
+    assert (header.width, header.height) == (400, 300)
+    assert header.frame_rate == pytest.approx(12.0)
+    assert header.file_length == path.stat().st_size
+
+
+def _run_ambertest(path: Path, *flags: str) -> str:
+    result = subprocess.run(
+        [str(AMBERTEST), str(path), *flags],
+        stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    return result.stdout
+
+
+def _clear_percent(output: str) -> float:
+    for line in output.splitlines():
+        if line.startswith("alpha:"):
+            # "alpha: 24.2% fully opaque, 75.7% fully clear"
+            return float(line.rsplit(",", 1)[1].strip().split("%")[0])
+    raise AssertionError(f"no alpha line in:\n{output}")
+
+
+@needs_ambertest
+def test_opaque_stage_leaves_nothing_clear(tmp_path):
+    path = tmp_path / "shape.swf"
+    path.write_bytes(build_swf_with_shape())
+    assert _clear_percent(_run_ambertest(path, "--frames", "3", "--static")) < 1.0
+
+
+@needs_ambertest
+def test_transparent_stage_clears_everything_not_drawn(tmp_path):
+    """The shape covers a quarter of the stage, so three quarters must be clear.
+
+    This is the check that distinguishes "transparency was requested" from
+    "transparency happened". badger.swf cannot make it -- it paints its own
+    full-stage background, so a transparent stage is invisible in it.
+    """
+    path = tmp_path / "shape.swf"
+    path.write_bytes(build_swf_with_shape())
+    clear = _clear_percent(
+        _run_ambertest(path, "--frames", "3", "--static", "--transparent")
+    )
+    assert 65.0 < clear < 85.0, f"expected ~75% clear, got {clear}%"
+
+
+@needs_ambertest
+@needs_badger
+def test_content_with_its_own_background_stays_opaque():
+    """Transparency must not invent holes in content that fills its own stage."""
+    output = _run_ambertest(
+        CORPUS / "badger.swf", "--frames", "10", "--transparent"
+    )
+    assert _clear_percent(output) < 1.0
+
+
+def test_converter_refuses_transparent_swf_rather_than_lying():
+    """Ruffle's exporter has no background option, so the subprocess path cannot
+    do transparency. It must say so instead of returning an opaque clip."""
+    from amberkit.convert import convert_swf
+
+    caps = _ffmpeg_or_skip()
+    with pytest.raises(ConvertError, match="transparent"):
+        convert_swf(
+            FIXTURES / "shape.swf", Path("/tmp/unused"), caps, transparent=True
+        )
