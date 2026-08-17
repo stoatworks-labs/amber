@@ -25,6 +25,37 @@ tools/amber convert ~/clips -o ~/converted  # convert a whole directory
 badger.swf -> badger.mov  544x400 @ 25fps  904 frames  15.2MB  [dxv]  [resized 550x400 -> 544x400 (scale)]
 ```
 
+<!-- downloads:start -->
+
+## Download
+
+**[v0.1.0](https://github.com/stoatworks-labs/amber/releases/tag/v0.1.0)** — prebuilt for macOS and Windows. Pick your platform:
+
+<details>
+<summary><b>macOS</b> — Universal (Apple Silicon + Intel)</summary>
+
+| Build | Download | Size |
+| --- | --- | --- |
+| Universal (Apple Silicon + Intel) · .dmg disk image | [`amber-0.1.0-macos-universal.dmg`](https://github.com/stoatworks-labs/amber/releases/download/v0.1.0/amber-0.1.0-macos-universal.dmg) | 25 MB |
+| Universal (Apple Silicon + Intel) · .zip archive | [`amber-0.1.0-macos-universal.zip`](https://github.com/stoatworks-labs/amber/releases/download/v0.1.0/amber-0.1.0-macos-universal.zip) | 22 MB |
+
+</details>
+
+<details>
+<summary><b>Windows</b> — x64</summary>
+
+| Build | Download | Size |
+| --- | --- | --- |
+| x64 · .zip archive | [`amber-0.1.0-windows-x86_64.zip`](https://github.com/stoatworks-labs/amber/releases/download/v0.1.0/amber-0.1.0-windows-x86_64.zip) | 6.6 MB |
+
+</details>
+
+All builds, checksums and release notes: [github.com/stoatworks-labs/amber/releases](https://github.com/stoatworks-labs/amber/releases).
+
+macOS builds are signed and notarised and open normally. The Windows builds are unsigned, so SmartScreen warns once.
+
+<!-- downloads:end -->
+
 ## What it handles
 
 | Input | Path |
