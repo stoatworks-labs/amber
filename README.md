@@ -10,6 +10,8 @@
 
 Legacy Flash content, made playable in Resolume.
 
+**Video:** [What it does, in 25 seconds](https://www.youtube.com/watch?v=vNWyO8A20Fk)
+
 Resolume opens neither `.swf` nor `.flv`. A decade and a half of VJ loops, web
 animation and motion tests is therefore sitting in formats nothing on the
 machine will play. `amber` converts them into DXV or Hap — the codecs Resolume
