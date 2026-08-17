@@ -185,6 +185,13 @@ real encoder rather than asserting a table against itself. `ambergl` covers the
 render path and the double-render guard; `oxbow probe` covers registration,
 which a directly-linked harness cannot see.
 
+## Credits
+
+The demonstration footage shows short clips of **"Badgers"** by **Jonti Picking
+— Weebl** ([the original](https://www.youtube.com/watch?v=EIyixC9NsLI),
+[his channel](https://www.youtube.com/@MrWeebl)), used to show what amber does
+with real period Flash. It is not included here and not redistributed.
+
 ## Licence
 
 MIT — see [LICENSE](LICENSE). amber bundles no Flash content, no ffmpeg, and no

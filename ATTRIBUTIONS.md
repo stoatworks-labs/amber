@@ -25,3 +25,16 @@ encoded by the operator's ffmpeg. No Resolume SDK, header or library is used.
 
 ## Test content
 No Flash content is committed to this repository. See AGENTS.md.
+
+## Demonstration footage
+
+The project video shows short clips of **"Badgers"** (widely known as *Badger
+Badger Badger*), a Flash animation by **Jonti Picking — Weebl**, used briefly to
+demonstrate what amber does with real period Flash. It is not included in this
+repository, is not redistributed with any release, and no ownership is claimed.
+
+- The original: <https://www.youtube.com/watch?v=EIyixC9NsLI>
+- Weebl's channel: <https://www.youtube.com/@MrWeebl>
+
+Note that amber carries no audio at all — FFGL provides no audio path — so the
+footage is silent and the song does not appear in it.

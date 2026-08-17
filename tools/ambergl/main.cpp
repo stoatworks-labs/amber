@@ -182,7 +182,7 @@ struct RunResult
 };
 
 RunResult Run( amber::AmberPlugin& plugin, Target& target, int frames, double startTime,
-               const std::string& dumpPrefix )
+               const std::string& dumpPrefix, int dumpEvery = 20 )
 {
 	RunResult result;
 	std::vector< unsigned char > previous;
@@ -210,7 +210,10 @@ RunResult Run( amber::AmberPlugin& plugin, Target& target, int frames, double st
 		if( !previous.empty() && pixels != previous )
 			++result.changed;
 
-		if( !dumpPrefix.empty() && frame % 20 == 0 )
+		// Every 20th frame by default -- enough to eyeball a run without writing
+		// a gigabyte. `--every 1` dumps the lot, which is what rendering video
+		// footage out of the plugin needs.
+		if( !dumpPrefix.empty() && dumpEvery > 0 && frame % dumpEvery == 0 )
 		{
 			char name[ 512 ];
 			std::snprintf( name, sizeof( name ), "%s%04d.pam", dumpPrefix.c_str(), frame );
@@ -235,9 +238,14 @@ int main( int argc, char** argv )
 	}
 
 	const std::string movie = argv[ 1 ];
+	// Video rendering needs to drive the same parameters an operator would.
+	int transparent = -1;   // -1 = leave at the plugin default
+	int scaling     = -1;
+	float speed     = -1.0f;
 	int width               = 1280;
 	int height              = 720;
 	int frames              = 120;
+	int dumpEvery           = 20;
 	std::string dumpPrefix;
 
 	for( int i = 2; i < argc; ++i )
@@ -248,6 +256,16 @@ int main( int argc, char** argv )
 			frames = std::atoi( argv[ ++i ] );
 		else if( std::strcmp( argv[ i ], "--out" ) == 0 && i + 1 < argc )
 			dumpPrefix = argv[ ++i ];
+		else if( std::strcmp( argv[ i ], "--every" ) == 0 && i + 1 < argc )
+			dumpEvery = std::atoi( argv[ ++i ] );
+		else if( std::strcmp( argv[ i ], "--transparent" ) == 0 )
+			transparent = true;
+		else if( std::strcmp( argv[ i ], "--opaque" ) == 0 )
+			transparent = false;
+		else if( std::strcmp( argv[ i ], "--scaling" ) == 0 && i + 1 < argc )
+			scaling = std::atoi( argv[ ++i ] );
+		else if( std::strcmp( argv[ i ], "--speed" ) == 0 && i + 1 < argc )
+			speed = static_cast< float >( std::atof( argv[ ++i ] ) );
 	}
 
 	CGLContextObj context = MakeContext();
@@ -288,7 +306,23 @@ int main( int argc, char** argv )
 		       "SetTextParameter succeeds for the display-only About line" );
 
 		std::printf( "\nplayback at %dx%d\n", width, height );
-		RunResult run = Run( plugin, target, frames, 0.0, dumpPrefix );
+		if( transparent >= 0 )
+		{
+			const int index = ParamIndex( plugin, "Transparent" );
+			if( index >= 0 ) plugin.SetFloatParameter( index, transparent ? 1.0f : 0.0f );
+		}
+		if( scaling >= 0 )
+		{
+			const int index = ParamIndex( plugin, "Scaling" );
+			if( index >= 0 ) plugin.SetFloatParameter( index, static_cast< float >( scaling ) );
+		}
+		if( speed >= 0.0f )
+		{
+			const int index = ParamIndex( plugin, "Speed" );
+			if( index >= 0 ) plugin.SetFloatParameter( index, speed );
+		}
+
+		RunResult run = Run( plugin, target, frames, 0.0, dumpPrefix, dumpEvery );
 		std::printf( "  %d of %d frames non-blank, %d changed\n", run.nonBlank, frames, run.changed );
 		Check( run.nonBlank > frames / 2, "most frames carry a picture" );
 		Check( run.changed > frames / 4, "the picture changes over time" );
