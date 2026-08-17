@@ -2,10 +2,11 @@
 
 > This is an AI-assisted project — the code was written with [Claude Code](https://claude.com/claude-code).
 > The converter has been run end to end against real 2003-era Flash and against
-> synthesised FLV files, and its output has been verified frame-accurate by
-> decoding it again and comparing pixels. **Nothing here has yet been loaded
-> into Resolume**, and the FFGL plugin described under "What comes next" does
-> not exist yet.
+> synthesised FLV files, and its output verified frame-accurate by decoding it
+> again and comparing pixels. The live plugin builds, registers correctly in a
+> real FFGL host, and renders correctly in a real GL context. **Neither has ever
+> been loaded into Resolume**, and no real-world FLV — as opposed to one
+> synthesised by ffmpeg — has been converted.
 
 Legacy Flash content, made playable in Resolume.
 
