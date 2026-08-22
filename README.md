@@ -31,15 +31,15 @@ badger.swf -> badger.mov  544x400 @ 25fps  904 frames  15.2MB  [dxv]  [resized 5
 
 ## Download
 
-**[v0.1.0](https://github.com/stoatworks-labs/amber/releases/tag/v0.1.0)** — prebuilt for macOS and Windows. Pick your platform:
+**[v0.1.1](https://github.com/stoatworks-labs/amber/releases/tag/v0.1.1)** — prebuilt for macOS and Windows. Pick your platform:
 
 <details>
 <summary><b>macOS</b> — Universal (Apple Silicon + Intel)</summary>
 
 | Build | Download | Size |
 | --- | --- | --- |
-| Universal (Apple Silicon + Intel) · .dmg disk image | [`amber-0.1.0-macos-universal.dmg`](https://github.com/stoatworks-labs/amber/releases/download/v0.1.0/amber-0.1.0-macos-universal.dmg) | 25 MB |
-| Universal (Apple Silicon + Intel) · .zip archive | [`amber-0.1.0-macos-universal.zip`](https://github.com/stoatworks-labs/amber/releases/download/v0.1.0/amber-0.1.0-macos-universal.zip) | 22 MB |
+| Universal (Apple Silicon + Intel) · .dmg disk image | [`amber-0.1.1-macos-universal.dmg`](https://github.com/stoatworks-labs/amber/releases/download/v0.1.1/amber-0.1.1-macos-universal.dmg) | 25 MB |
+| Universal (Apple Silicon + Intel) · .zip archive | [`amber-0.1.1-macos-universal.zip`](https://github.com/stoatworks-labs/amber/releases/download/v0.1.1/amber-0.1.1-macos-universal.zip) | 22 MB |
 
 </details>
 
@@ -48,7 +48,7 @@ badger.swf -> badger.mov  544x400 @ 25fps  904 frames  15.2MB  [dxv]  [resized 5
 
 | Build | Download | Size |
 | --- | --- | --- |
-| x64 · .zip archive | [`amber-0.1.0-windows-x86_64.zip`](https://github.com/stoatworks-labs/amber/releases/download/v0.1.0/amber-0.1.0-windows-x86_64.zip) | 6.6 MB |
+| x64 · .zip archive | [`amber-0.1.1-windows-x86_64.zip`](https://github.com/stoatworks-labs/amber/releases/download/v0.1.1/amber-0.1.1-windows-x86_64.zip) | 6.6 MB |
 
 </details>
 
