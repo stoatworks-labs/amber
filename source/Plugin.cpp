@@ -96,7 +96,7 @@ std::string BuildAboutText()
 	const std::string stale = std::string( stoatworks::about::name ) + " " +
 	                          stoatworks::about::versionFallback;
 	if( line.rfind( stale, 0 ) == 0 )
-		line = std::string( stoatworks::about::name ) + " " AMBER_VERSION +
+		line = std::string( stoatworks::about::name ) + " v" AMBER_VERSION +
 		       line.substr( stale.size() );
 
 	return line + "\n"
