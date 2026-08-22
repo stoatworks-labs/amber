@@ -196,6 +196,7 @@ RunResult Run( amber::AmberPlugin& plugin, Target& target, int frames, double st
 
 		// A host advances its clock between frames; 1/60s is a normal output rate
 		// and deliberately not the movie's own, so the accumulator is exercised.
+		plugin.SetClockScaleForTest( 1.0 );  // seconds, said out loud rather than inferred
 		plugin.SetTime( startTime + frame / 60.0 );
 
 		ProcessOpenGLStruct gl = {};
@@ -334,6 +335,7 @@ int main( int argc, char** argv )
 		// screen.
 		std::printf( "\ndouble-render guard\n" );
 		const double frozen = 99.0;
+		plugin.SetClockScaleForTest( 1.0 );  // seconds, said out loud rather than inferred
 		plugin.SetTime( frozen );
 		ProcessOpenGLStruct gl = {};
 		gl.HostFBO             = target.fbo;

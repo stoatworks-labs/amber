@@ -4,6 +4,9 @@
 
 #include <FFGLSDK.h>
 
+// After FFGLSDK.h, which is where FFUInt32 comes from.
+#include "StoatworksAboutParams.h"
+
 #include <string>
 #include <vector>
 
@@ -83,8 +86,27 @@ private:
 		PT_SMOOTHING,
 		PT_TRANSPARENT,
 		PT_ABOUT,
+
+		//One button per link -- the project page, the source, the funding page
+		//-- each opening a browser and storing nothing. See
+		//StoatworksAboutParams.h. Last in the enum so no saved composition's
+		//parameter ids shift, and static_asserted in Plugin.cpp so that
+		//writing a user guide later cannot silently leave a button
+		//undeclared.
+		PT_ABOUT_BUTTON_1,
+		PT_ABOUT_BUTTON_2,
+		PT_ABOUT_BUTTON_3,
+
 		PT_COUNT
 	};
+
+	// The buttons are declared one per link, so the run above and the run the
+	// block actually has must agree. They diverge the day somebody writes a
+	// user guide, and this is what says so. In the header because ParamId is
+	// private -- nothing in the .cpp can see PT_COUNT from outside the class.
+	static_assert( PT_COUNT - PT_ABOUT == stoatworks::about::kParamCount,
+	               "the About run no longer matches StoatworksAbout.h -- "
+	               "add or remove a PT_ABOUT_BUTTON_n to match" );
 
 	enum class Scaling
 	{
@@ -100,6 +122,16 @@ private:
 
 	/// Convert the host's clock into seconds, whatever units it hands over.
 	void UpdateClock();
+
+public:
+	FFResult SetTime( double time ) override;
+
+	void SetClockScaleForTest( double scale );
+	void TickClockForTest();
+	double ClockScaleForTest() const;
+	double HostSecondsForTest() const;
+
+private:
 
 	/// Upload `mPixels` into `mTexture`.
 	void UploadFrame();
@@ -132,11 +164,20 @@ private:
 	bool mOpenFailed = false;
 	std::string mLastError;
 
+	/// GetTextParameter hands the host a bare pointer, so the About line has
+	/// to outlive the call.
+	std::string mAboutText;
+
 	// --- clock -------------------------------------------------------------
 	/// Multiplier turning the host's `hostTime` into seconds. Zero until a
 	/// plausible delta has been seen; hosts differ on whether this is seconds
 	/// or milliseconds and the header does not say.
 	double mClockScale = 0.0;
+	double mLastWallTime = -1.0;
+	double mWallStart = -1.0;
+	int mSecondsVotes = 0;
+	int mMillisVotes = 0;
+	bool mHostTimeSeen = false;
 	double mLastRawTime = -1.0;
 	double mHostSeconds = 0.0;
 	double mLastHostSeconds = -1.0;

@@ -2,6 +2,7 @@
 
 #include "AmberCore.h"
 
+#include <chrono>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -11,6 +12,18 @@ namespace amber
 
 namespace
 {
+
+/// Frames that must agree before the host's clock unit is settled.
+constexpr int kClockVotes = 4;
+
+/// Wall clock, to calibrate the host's against. Steady rather than system, so
+/// nothing here moves if the machine's clock is corrected.
+double wallSeconds()
+{
+	using namespace std::chrono;
+	static const steady_clock::time_point start = steady_clock::now();
+	return duration_cast< duration< double > >( steady_clock::now() - start ).count();
+}
 
 /// Passthrough vertex shader. The screen quad supplies position and UV.
 const char* kVertexShader = R"(#version 410 core
@@ -73,12 +86,25 @@ void main()
 }
 )";
 
-const char* kAboutText =
-	"amber " AMBER_VERSION "\n"
-	"Flash content as a live source.\n"
-	"Powered by Ruffle (ruffle.rs), MIT/Apache-2.0.\n"
-	"Transparent uses Flash's own wmode=transparent.\n"
-	"No audio: FFGL provides no audio path.";
+/// The shared line -- name, version, licence, maker -- then the facts that are
+/// amber's alone. The version comes from the build, not from the generated
+/// header's fallback, so it is substituted rather than taken as read.
+std::string BuildAboutText()
+{
+	std::string line = stoatworks::about::textParam( 0 );
+
+	const std::string stale = std::string( stoatworks::about::name ) + " " +
+	                          stoatworks::about::versionFallback;
+	if( line.rfind( stale, 0 ) == 0 )
+		line = std::string( stoatworks::about::name ) + " " AMBER_VERSION +
+		       line.substr( stale.size() );
+
+	return line + "\n"
+	       "Flash content as a live source.\n"
+	       "Powered by Ruffle (ruffle.rs), MIT/Apache-2.0.\n"
+	       "Transparent uses Flash's own wmode=transparent.\n"
+	       "No audio: FFGL provides no audio path.";
+}
 
 }  // namespace
 
@@ -105,7 +131,17 @@ AmberPlugin::AmberPlugin()
 	SetParamInfo( PT_SMOOTHING, "Smoothing", FF_TYPE_BOOLEAN, true );
 	SetParamInfo( PT_TRANSPARENT, "Transparent", FF_TYPE_BOOLEAN, true );
 
-	SetParamInfo( PT_ABOUT, "About", FF_TYPE_TEXT, kAboutText );
+	mAboutText = BuildAboutText();
+	SetParamInfo( PT_ABOUT, "About", FF_TYPE_TEXT, mAboutText.c_str() );
+	{
+		// Inline rather than through a helper: SetParamInfo is protected on
+		// CFFGLPlugin, so nothing outside the class can call it.
+		FFUInt32 aboutId = PT_ABOUT + 1;
+		for( const auto& b : stoatworks::about::buttons() )
+			SetParamInfo( aboutId++, b.label, FF_TYPE_EVENT, false );
+	}
+	for( unsigned int id = PT_ABOUT; id < PT_COUNT; ++id )
+		SetParamGroup( id, "About" );
 }
 
 AmberPlugin::~AmberPlugin()
@@ -214,23 +250,90 @@ void AmberPlugin::CloseMovie()
 
 void AmberPlugin::UpdateClock()
 {
-	// FFGL hands over `hostTime` without saying what unit it is in, and hosts
-	// disagree. The scale is inferred once from the first plausible delta:
-	// a per-frame step of milliseconds is tens to hundreds, of seconds is
-	// thousandths. Same approach as coinop's UpdateClock.
-	const double raw = hostTime;
+	// FFGL never says what unit SetTime arrives in, and hosts disagree:
+	// Resolume sends MILLISECONDS (measured live at 20.0 per frame at its
+	// 50 fps, and the SDK's own Particles sample divides by 1000), while the
+	// offline harness sends seconds. Reading it raw is a thousand times fast
+	// on the one host that matters and exactly right on the one that gets
+	// tested, which is how it stays hidden.
+	//
+	// This used to guess the unit from the magnitude of a single frame delta
+	// and then lock. That had three holes: a delta between 0.5 and 2.0 decided
+	// nothing, a burst of sub-0.5 ms frames at load -- a thumbnail render on a
+	// quick GPU -- locked it to "seconds" for the rest of the session, and
+	// while undecided it assumed seconds, which is precisely the millisecond
+	// host's wrong answer.
+	//
+	// So measure instead of guessing. steady_clock says how much real time
+	// passed, the host says how much host time passed, and the ratio names the
+	// unit outright. Nothing plausible sits between 1 and 1000, so both bands
+	// are wide and a frame fitting neither simply does not vote.
+	const double wallNow = wallSeconds();
+	if( mWallStart < 0.0 )
+		mWallStart = wallNow;
 
-	if( mClockScale == 0.0 && mLastRawTime >= 0.0 && raw > mLastRawTime )
+	// Never read `hostTime` before the host has set it: CFFGLPlugin's
+	// constructor initialises bpm and barPhase and leaves hostTime
+	// uninitialised, so until SetTime lands it is whatever was in that memory.
+	const double raw = mHostTimeSeen ? hostTime : -1.0;
+
+	if( mClockScale == 0.0 && raw >= 0.0 && mLastRawTime >= 0.0 && mLastWallTime >= 0.0 )
 	{
-		const double delta = raw - mLastRawTime;
-		if( delta >= 0.001 && delta <= 0.5 )
-			mClockScale = 1.0;
-		else if( delta >= 2.0 && delta <= 500.0 )
-			mClockScale = 0.001;
+		const double hostDelta = raw - mLastRawTime;
+		const double wallDelta = wallNow - mLastWallTime;
+
+		// A paused host, a looping clip or a stalled frame tells us nothing.
+		if( hostDelta > 0.0 && wallDelta >= 0.0005 )
+		{
+			const double ratio = hostDelta / wallDelta;
+			if( ratio > 0.1 && ratio < 10.0 )
+				++mSecondsVotes;
+			else if( ratio > 100.0 && ratio < 10000.0 )
+				++mMillisVotes;
+
+			// Several frames rather than one, so a single odd frame -- the
+			// first after a seek, say -- cannot decide it on its own.
+			if( mSecondsVotes >= kClockVotes || mMillisVotes >= kClockVotes )
+			{
+				mClockScale = mMillisVotes > mSecondsVotes ? 0.001 : 1.0;
+			}
+		}
 	}
 
-	mLastRawTime = raw;
-	mHostSeconds = raw * ( mClockScale == 0.0 ? 1.0 : mClockScale );
+	if( raw >= 0.0 )
+		mLastRawTime = raw;
+	mLastWallTime = wallNow;
+
+	// Until the unit is settled -- and for a host that never calls SetTime at
+	// all -- run on the real clock. Wrong in origin but right in rate, where
+	// assuming seconds would be a thousand times fast on Resolume.
+	mHostSeconds = ( raw >= 0.0 && mClockScale != 0.0 ) ? raw * mClockScale : wallNow - mWallStart;
+}
+
+FFResult AmberPlugin::SetTime( double time )
+{
+	mHostTimeSeen = true;
+	return CFFGLPlugin::SetTime( time );
+}
+
+void AmberPlugin::SetClockScaleForTest( double scale )
+{
+	mClockScale = scale;
+}
+
+void AmberPlugin::TickClockForTest()
+{
+	UpdateClock();
+}
+
+double AmberPlugin::ClockScaleForTest() const
+{
+	return mClockScale;
+}
+
+double AmberPlugin::HostSecondsForTest() const
+{
+	return mHostSeconds;
 }
 
 float AmberPlugin::SpeedMultiplier() const
@@ -404,6 +507,9 @@ FFResult AmberPlugin::SetFloatParameter( unsigned int index, float value )
 		return FF_SUCCESS;
 
 	default:
+		// The About buttons open a browser and store nothing.
+		if( index > PT_ABOUT && index < PT_COUNT )
+			return stoatworks::about::handleParam( index - PT_ABOUT, value ) ? FF_SUCCESS : FF_FAIL;
 		return FF_FAIL;
 	}
 }
@@ -454,7 +560,7 @@ char* AmberPlugin::GetTextParameter( unsigned int index )
 	switch( index )
 	{
 	case PT_FILE:  return const_cast< char* >( mMoviePath.c_str() );
-	case PT_ABOUT: return const_cast< char* >( kAboutText );
+	case PT_ABOUT: return const_cast< char* >( mAboutText.c_str() );
 	default:       return nullptr;
 	}
 }
