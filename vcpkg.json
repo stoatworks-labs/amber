@@ -1,0 +1,8 @@
+{
+  "name": "amber",
+  "version-string": "0.1.2",
+  "description": "Dependencies for building the Amber FFGL plugin. GLEW is only needed on Windows and Linux; macOS uses the system OpenGL framework, which is why the dependency is guarded rather than unconditional. The Rust half (amber_core) brings its own crates through cargo and needs nothing from vcpkg.",
+  "dependencies": [
+    { "name": "glew", "platform": "!osx" }
+  ]
+}
