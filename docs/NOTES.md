@@ -264,3 +264,36 @@ and Flash content is often audio-driven.
 Related: [dxv hap encoder traps](https://github.com/stoatworks-labs/fleet-notes/blob/main/notes/reference_dxv_hap_encoder_traps.md), [cartridge](https://github.com/stoatworks-labs/cartridge/blob/main/docs/NOTES.md) (`cartridge`),
 [ffgl sdk bugs](https://github.com/stoatworks-labs/fleet-notes/blob/main/notes/reference_ffgl_sdk_bugs.md), [licence gaps](https://github.com/stoatworks-labs/fleet-notes/blob/main/notes/project_licence_gaps.md),
 **disclaimer scope** (working-practice note, kept in Claude memory) (disclaimer present, top of README).
+
+## Building the Windows DLL needs a JDK (2026-09-05)
+
+`ruffle_core`'s build script compiles `playerglobal_avm2` with a Java-based
+ActionScript compiler, so a machine without one fails the whole build at the
+Rust step:
+
+    thread 'main' panicked at .../ruffle/core/build.rs:10:10:
+    Failed to build playerglobal_avm2: Java could not be found on your computer.
+
+Nothing in this repo mentions Java — it comes in through the Ruffle git
+dependency — and the failure surfaces as `error MSB8066 ... exited with code
+101` from MSBuild, which reads like a C++ problem. Any JDK on `PATH` fixes it;
+win-lab has Temurin 21 at `C:\tools\jdk` with `JAVA_HOME` set machine-wide.
+
+**Build it on win-lab (x86_64), not the Parallels guest.** `AMBER_CARGO_TARGET`
+exists only because the Parallels VM is ARM64 — on an x64 host the default
+triple is already right and the cache entry can stay blank. First full build
+was **68m32s** for the Rust half on win-lab's two vCPUs; a rebuild reuses the
+target dir and is far quicker.
+
+    cmake -B build-win -A x64 -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake \
+      -DVCPKG_TARGET_TRIPLET=x64-windows-static-md -DVCPKG_MANIFEST_MODE=OFF
+
+## Two version sources, and only one of them ships (2026-09-05)
+
+`project(Amber VERSION ...)` is not what stamps the bundle. `set(AMBER_VERSION
+...)` on line 8 is: it feeds `MACOSX_BUNDLE_SHORT_VERSION_STRING` and the
+compiled-in About string. They had drifted — project() at 0.1.2, AMBER_VERSION
+still 0.1.1 — so a v0.1.2 release would have shipped a plugin whose own About
+line named v0.1.1, with the filename carrying the tag and looking correct.
+Bump both. A fleet-wide sweep found amber is the only repo with this shape.
