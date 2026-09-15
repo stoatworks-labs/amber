@@ -297,3 +297,19 @@ compiled-in About string. They had drifted — project() at 0.1.2, AMBER_VERSION
 still 0.1.1 — so a v0.1.2 release would have shipped a plugin whose own About
 line named v0.1.1, with the filename carrying the tag and looking correct.
 Bump both. A fleet-wide sweep found amber is the only repo with this shape.
+
+## 2026-09-15: the hero picture
+
+`docs/hero.png` is the website's hero and thumbnail. It is the plugin class rendering
+the showcase fixture with a transparent stage, composited over a grid afterwards so
+the transparency is visible in a still:
+
+```
+build/ambergl tests/fixtures/showcase.swf --size 1920x1080 --frames 240 --transparent --every 20 --out frame-
+```
+
+then frame-0020.pam (RGBA) alpha-composited over a 48 px grid on #0e1218 with PIL.
+`ambergl` reports "the picture changes over time: FAIL" on this fixture — it is a
+static diagonal by design — and still writes the frames. The website's caption
+(`shotNote`) had described exactly this picture while the page showed the
+mark-only thumbnail; the render is what closed that gap.

@@ -27,6 +27,10 @@ tools/amber convert ~/clips -o ~/converted  # convert a whole directory
 badger.swf -> badger.mov  544x400 @ 25fps  904 frames  15.2MB  [dxv]  [resized 550x400 -> 544x400 (scale)]
 ```
 
+![The generated showcase movie rendered by the plugin with a transparent stage, over a grid that shows through between the shapes](docs/hero.png)
+
+<sub>The repo's generated showcase movie — a stepped diagonal of vector rectangles, `tests/fixtures/showcase.swf` — rendered by the plugin class through its `ambergl` harness with the stage transparent, then composited over a grid: the grid shows through everywhere the shapes are not. Generated demonstration content, nobody else's Flash.</sub>
+
 <!-- downloads:start -->
 
 ## Download
