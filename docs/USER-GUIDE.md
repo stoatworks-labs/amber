@@ -4,6 +4,10 @@ amber makes **legacy Flash content playable in Resolume**. Resolume opens neithe
 `.flv`, so a decade and a half of VJ loops, web animation and motion tests is sitting in formats
 nothing on the machine will play.
 
+![The repo's generated showcase movie — a stepped diagonal of vector rectangles — rendered by the plugin class through its offline harness with the stage trans…](hero.png)
+
+*The repo's generated showcase movie — a stepped diagonal of vector rectangles — rendered by the plugin class through its offline harness with the stage transparent, then composited over a grid: the grid shows through everywhere the shapes are not. Generated demonstration content, nobody else's Flash.*
+
 There are two ways out, and they are good at different things:
 
 - **The converter** turns `.swf` and `.flv` into DXV or Hap — the codecs Resolume decodes on the
