@@ -14,7 +14,7 @@
 static CFFGLPluginInfo PluginInfo(
 	PluginFactory< amber::AmberPlugin >,          // Create method
 	"AM01",                                       // Plugin unique ID, max 4 chars
-	"Amber",                                      // Plugin name
+	"SW Amber",                                   // Plugin name
 	2,                                            // API major version
 	1,                                            // API minor version
 	0,                                            // Plugin major version
