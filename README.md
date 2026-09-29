@@ -1,6 +1,7 @@
 # amber
 
-> This is an AI-assisted project — the code was written with [Claude Code](https://claude.com/claude-code).
+> **AI-assisted project.** This codebase was created with [Claude](https://claude.com/claude-code)
+> (Anthropic), directed and reviewed by a human author.
 > The converter has been run end to end against real 2003-era Flash and against
 > real-world FLV in all three of its common codecs, with the output verified
 > frame-accurate by decoding it again and comparing pixels. **The plugin has been
