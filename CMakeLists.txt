@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(Amber
-    VERSION 0.1.2
+    VERSION 0.1.3
     LANGUAGES C CXX
 )
 
-set(AMBER_VERSION "0.1.2")
+set(AMBER_VERSION "0.1.3")
 
 # ---------------------------------------------------------------------------
 # Architecture.
