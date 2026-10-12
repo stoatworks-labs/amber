@@ -2,21 +2,21 @@
 
 > **AI-assisted project.** This codebase was created with [Claude](https://claude.com/claude-code)
 > (Anthropic), directed and reviewed by a human author.
-> The converter has been run end to end against real 2003-era Flash and against
-> real-world FLV in all three of its common codecs, with the output verified
+> I've run the converter end to end against real 2003-era Flash and against
+> real-world FLV in all three of its common codecs, and checked the output is
 > frame-accurate by decoding it again and comparing pixels. **The plugin has been
 > confirmed working in Resolume Arena on Apple Silicon.** Its Intel slice has
-> never been run in an Intel Resolume, and the Windows build is new and untested
-> in a host.
+> never been run in an Intel Resolume, and the Windows build is new and hasn't
+> been tried in a host.
 
 Legacy Flash content, made playable in Resolume.
 
 **Video:** [What it does, in 25 seconds](https://www.youtube.com/watch?v=vNWyO8A20Fk)
 
-Resolume opens neither `.swf` nor `.flv`. A decade and a half of VJ loops, web
-animation and motion tests is therefore sitting in formats nothing on the
-machine will play. `amber` converts them into DXV or Hap — the codecs Resolume
-decodes on the GPU — preserving frame rate, transparency and dimensions.
+Resolume won't open `.swf` or `.flv`, so a decade and a half of VJ loops, web
+animation and motion tests is sitting in formats nothing on the machine will
+play. `amber` converts them into DXV or Hap (the codecs Resolume decodes on the
+GPU), keeping the frame rate, transparency and dimensions.
 
 ```bash
 tools/amber doctor                          # what can this machine do?
@@ -30,7 +30,7 @@ badger.swf -> badger.mov  544x400 @ 25fps  904 frames  15.2MB  [dxv]  [resized 5
 
 ![The generated showcase movie rendered by the plugin with a transparent stage, over a grid that shows through between the shapes](docs/hero.png)
 
-<sub>The repo's generated showcase movie — a stepped diagonal of vector rectangles, `tests/fixtures/showcase.swf` — rendered by the plugin class through its `ambergl` harness with the stage transparent, then composited over a grid: the grid shows through everywhere the shapes are not. Generated demonstration content, nobody else's Flash.</sub>
+<sub>The repo's generated showcase movie (a stepped diagonal of vector rectangles, `tests/fixtures/showcase.swf`), rendered by the plugin class through its `ambergl` harness with the stage transparent, then composited over a grid, which shows through everywhere the shapes aren't. It's generated demonstration content, nobody else's Flash.</sub>
 
 <!-- downloads:start -->
 
@@ -94,7 +94,7 @@ brew install ffmpeg-full
 but **not** the Hap encoder, so transparent content would have nowhere to go.
 `tools/amber doctor` tells you which one it found and what it can do.
 
-For `.swf` support you also need Ruffle's exporter, which Ruffle does not ship
+For `.swf` support you also need Ruffle's exporter, which Ruffle doesn't ship
 in its releases:
 
 ```bash
@@ -106,35 +106,35 @@ amber finds it there automatically. `.flv` conversion works without it.
 
 ## Two things worth knowing before you convert a library
 
-**DXV cannot carry transparency.** ffmpeg's DXV encoder offers exactly one
-format, `dxt1`, whose own help text reads "Normal Quality, No Alpha". Handed an
-image with alpha it does not warn — it returns every pixel opaque. Since VP6-alpha
-exists precisely for transparent overlay loops, amber refuses to send alpha
-content to DXV and routes it to Hap Alpha instead. `--flatten` overrides this
-if you genuinely want the alpha gone.
+**DXV can't carry transparency.** ffmpeg's DXV encoder offers just the one
+format, `dxt1`, whose own help text reads "Normal Quality, No Alpha". Hand it an
+image with alpha and it doesn't warn you, it just returns every pixel opaque.
+Since VP6-alpha exists for transparent overlay loops in the first place, amber
+refuses to send alpha content to DXV and routes it to Hap Alpha instead.
+`--flatten` overrides this if you actually want the alpha gone.
 
-**DXV silently corrupts any width that is not a multiple of 16.** The encoder
-returns success, writes a plausible file, and records the right dimensions —
-and the picture inside is sheared diagonally. This is not a corner case:
-**550×400 is the default Flash stage size**, so the naive pipeline mangles a
+**DXV silently corrupts any width that isn't a multiple of 16.** The encoder
+returns success, writes a plausible file and records the right dimensions, and
+the picture inside is sheared diagonally. That would be a corner case, except
+that **550×400 is the default Flash stage size**, so the naive pipeline mangles a
 large fraction of all Flash ever made. amber measures the constraint and works
 around it, and `tests/test_amber.py` re-measures it on every run so the day
 ffmpeg fixes it is noticed rather than assumed.
 
-For `.swf` this costs nothing at all — Flash is vector, so Ruffle simply
+For `.swf` this costs nothing at all: Flash is vector, so Ruffle just
 rasterises straight to a legal size. For `.flv` the frames are raster and have
 to be resampled (`--fit scale`, the default) or padded (`--fit pad`).
 
-**DXV blocks up on smooth gradients.** It is DXT1 at a fixed 4:1, so skies and
+**DXV blocks up on smooth gradients.** It's DXT1 at a fixed 4:1, so skies and
 soft falloffs show visible 4x4 blocking. Measured against a lossless reference
 on gradient-heavy 720p footage: DXV 45.0 dB with a worst-case error of 44,
-`hap_q` 46.8 dB with a worst-case error of 19 — for about 80% more file. Reach
+`hap_q` 46.8 dB with a worst-case error of 19 (for about 80% more file). Reach
 for `--profile hap_q` when the content is gradient-heavy and the disk can take
 it. Plain `--profile hap` is pointless: identical quality to DXV, 27% bigger.
 
-**DXV files are large.** 28 seconds of 3840x2160 came out at 1.4GB. That is the
-codec working as intended — it trades size for GPU-decodable playback — but plan
-disk accordingly before converting a library.
+**DXV files are large.** 28 seconds of 3840x2160 came out at 1.4GB. That's the
+codec working as intended (it trades size for GPU-decodable playback), but plan
+your disk space before converting a library.
 
 ## The live plugin
 
@@ -151,22 +151,22 @@ cmake --install build     # -> ~/Library/Graphics/FreeFrame Plug-Ins
 Parameters: **Movie** (the .swf), **Run**, **Restart**, **Speed**, **Scaling**
 (Fit / Fill / Stretch), **Smoothing**, **Transparent**.
 
-**Transparent is on by default**, and it is what makes Flash usable as an
+**Transparent is on by default**, and it's what makes Flash usable as an
 overlay: Ruffle implements Flash's own `wmode=transparent`, so everything the
-movie does not draw comes through clear and the layers underneath show. Turn it
+movie doesn't draw comes through clear and the layers underneath show. Turn it
 off to get the movie's declared stage colour behind it instead.
 
 **Confirmed working in Resolume Arena on Apple Silicon.** Three limits are worth
 knowing before you rely on it:
 
-- **There is no audio.** FFGL provides no audio path at all, so a live Flash
+- **There's no audio.** FFGL has no audio path at all, so a live Flash
   clip is silent no matter what it contains. The converter has the same limit.
 - **Ruffle runs in Resolume's process.** Every call into it is guarded, which
-  turns most bad content into a black layer rather than a crash — but a guard is
-  not a process boundary, and content that hard-crashes Ruffle takes Resolume
-  with it. An out-of-process helper, like the one
-  [cartridge](https://github.com/stoatworks-labs/cartridge) grew for exactly this
-  reason, does not exist here yet.
+  turns most bad content into a black layer rather than a crash, but a guard
+  isn't a process boundary, and content that hard-crashes Ruffle takes Resolume
+  down with it. There isn't an out-of-process helper here yet, like the one
+  [cartridge](https://github.com/stoatworks-labs/cartridge) grew for this very
+  reason.
 - **Only the Apple Silicon slice has been run in a host.** The bundle is
   universal and the Windows build exists, but neither the Intel slice nor the
   Windows DLL has been loaded into a Resolume yet.
@@ -176,7 +176,7 @@ Live playback is `.swf` only; `.flv` goes through the converter.
 **Only the plugin can do transparency, not the converter.** The converter drives
 Ruffle's `exporter` binary, which has no background option and always renders
 opaque, so `.swf` files needing a transparent background have to be played live
-rather than converted. That is a gap in the exporter's CLI rather than in
+rather than converted. That's a gap in the exporter's CLI rather than in
 Ruffle, and the converter says so instead of quietly handing back an opaque clip.
 
 ## Verification
@@ -197,7 +197,7 @@ which a directly-linked harness cannot see.
 The demonstration footage shows short clips of **"Badgers"** by **Jonti Picking
 — Weebl** ([the original](https://www.youtube.com/watch?v=EIyixC9NsLI),
 [his channel](https://www.youtube.com/@MrWeebl)), used to show what amber does
-with real period Flash. It is not included here and not redistributed.
+with real period Flash. It isn't included here and isn't redistributed.
 
 ## Licence
 
