@@ -82,9 +82,10 @@ Output is chosen from what the source needs:
 
 ## Installing
 
-amber **vendors nothing**. It drives your own ffmpeg and your own build of
-Ruffle's exporter as subprocesses, which is what keeps this repo cleanly MIT
-with no LGPL linking question to answer.
+The converter bundles nothing. It drives your own ffmpeg and your own build of
+Ruffle's exporter as separate processes, so there's no LGPL linking question to
+answer. (The live plugin is another matter: Ruffle is compiled into it. See
+[Licence](#licence).)
 
 ```bash
 brew install ffmpeg-full
@@ -104,7 +105,7 @@ cd ~/Documents/Amber/ruffle-src && cargo build --release --package=exporter
 
 amber finds it there automatically. `.flv` conversion works without it.
 
-## Two things worth knowing before you convert a library
+## Four things worth knowing before you convert a library
 
 **DXV can't carry transparency.** ffmpeg's DXV encoder offers just the one
 format, `dxt1`, whose own help text reads "Normal Quality, No Alpha". Hand it an
@@ -201,5 +202,17 @@ with real period Flash. It isn't included here and isn't redistributed.
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE). amber bundles no Flash content, no ffmpeg, and no
-part of Ruffle; see [ATTRIBUTIONS.md](ATTRIBUTIONS.md).
+amber's own code is MIT, see [LICENSE](LICENSE).
+
+The plugin has other people's code compiled into it as well: Ruffle (MIT or
+Apache-2.0, your choice) and the Rust crates it and wgpu pull in, the Noto Sans
+fallback font Ruffle carries (SIL Open Font License 1.1), the Resolume FFGL SDK
+(BSD-3-Clause) and, in the Windows build, GLEW. Their licence texts are in
+[THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), and the build copies that
+file into `Amber.bundle` so it travels with the plugin.
+`scripts/third-party-notices.py` writes it from the Cargo lockfile, so run that
+whenever the Ruffle pin moves. [ATTRIBUTIONS.md](ATTRIBUTIONS.md) says who did
+what.
+
+The converter ships no third-party code, and amber bundles no Flash content and
+no part of ffmpeg.

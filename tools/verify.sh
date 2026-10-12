@@ -102,6 +102,18 @@ echo
 echo "== shaders =="
 shaders_compile
 
+echo
+echo "== third-party notices =="
+# The plugin links Ruffle and a couple of hundred crates, and their notices have
+# to ship with it. A Cargo.lock change that is not followed by a regenerated
+# THIRD-PARTY-NOTICES.txt fails here rather than going out in a release.
+if command -v cargo >/dev/null 2>&1; then
+	python3 scripts/third-party-notices.py --check
+else
+	printf '   skipped: cargo not installed\n'
+fi
+
+echo
 echo "== capability report =="
 ./tools/amber doctor || echo "(doctor reported gaps -- tests will skip accordingly)"
 

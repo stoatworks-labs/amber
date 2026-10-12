@@ -44,6 +44,14 @@ Ruffle is MIT-OR-Apache-2.0 and *could* be vendored; it is not, because its
 library API has no stability guarantee and the exporter binary is a stable
 boundary.
 
+**2026-10-12: that is the converter only.** The plugin, built later on
+2026-08-17, links Ruffle and a couple of hundred crates statically, yet the README
+went on saying amber "vendors nothing" and bundles "no part of Ruffle", and the
+release zips carried the binary and README.md with no licence text at all.
+`THIRD-PARTY-NOTICES.txt` (from `scripts/third-party-notices.py`) now carries
+the notices, the build copies it into the bundle, and `verify.sh` fails when it
+is stale. The rules are in AGENTS.md under "The architectural decision".
+
 ## What was learned, in priority order
 
 **The DXV and Hap encoder traps are in their own note —

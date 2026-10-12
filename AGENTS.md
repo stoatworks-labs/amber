@@ -19,8 +19,8 @@ Two phases, both now exist:
 
 ## The architectural decision everything else follows from
 
-**amber vendors nothing and links nothing.** ffmpeg and Ruffle are invoked as
-*subprocesses*.
+**The converter vendors nothing and links nothing.** ffmpeg and Ruffle's
+exporter are invoked as *subprocesses*. (The plugin is the exception, below.)
 
 This is not squeamishness. The fleet ships MIT and takes Patreon income, and
 the useful FLV decoders (VP6 especially) live in ffmpeg under LGPL. Linking
@@ -34,9 +34,25 @@ The cost is that capability becomes a runtime question, which is why
 `probe.py` interrogates ffmpeg rather than assuming, and why `amber doctor`
 exists.
 
-Ruffle is MIT-OR-Apache-2.0 and could safely be vendored. It still is not,
-because its library API carries no stability guarantee and the exporter binary
-is a clean, stable-enough boundary.
+Ruffle is MIT-OR-Apache-2.0 and could safely be vendored. The converter still
+drives the exporter binary instead, because Ruffle's library API carries no
+stability guarantee and the exporter binary is a clean, stable-enough boundary.
+
+**The plugin does link Ruffle**, and with it a couple of hundred crates (wgpu,
+naga, lyon and the rest), Ruffle's Noto Sans fallback font, the FFGL SDK and,
+on Windows, GLEW. Every one of those licences asks for its notice to travel
+with the binary, so:
+
+- `THIRD-PARTY-NOTICES.txt` carries them. `scripts/third-party-notices.py`
+  writes it from `cargo tree` over each release target and the crates' own
+  licence files; never edit it by hand. **Re-run it after any change to
+  `source/amber_core/Cargo.lock`** (a Ruffle pin move above all).
+  `tools/verify.sh` runs it with `--check` and fails when it is stale.
+- The build copies it and `LICENSE` into `Amber.bundle/Contents/Resources`.
+- **Every release archive carries both files.** The macOS zip and dmg get them
+  inside the bundle from the build; the Windows zip must put them beside
+  `Amber.dll`, because a DLL has nowhere to keep them. Releases up to v0.1.3
+  shipped the binary and README.md only.
 
 ## The traps, all measured on this machine
 

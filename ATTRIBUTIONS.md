@@ -1,9 +1,15 @@
 # Attributions
 
-amber is two things, and they owe different debts. The plugin (`Amber.bundle`)
-compiles in the code listed under the first heading below. The converter
-(`tools/amber`) bundles no third-party code: everything it uses is invoked as a
-separate process, installed and owned by the operator.
+amber is two things, and they owe different debts. The plugin (`Amber.bundle`,
+`Amber.dll`) compiles in the code listed under the first heading below. The
+converter (`tools/amber`) bundles no third-party code: everything it uses is
+invoked as a separate process, installed and owned by the operator.
+
+This file says who did what. The licence texts and copyright notices the plugin
+owes them, every Rust crate included, are in
+[THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), which
+`scripts/third-party-notices.py` writes from the lockfile and the build copies
+into `Amber.bundle/Contents/Resources`.
 
 ## Compiled into the plugin
 
@@ -21,13 +27,18 @@ contributors.
 
 The plugin embeds Ruffle to play `.swf` live: `ruffle_core`, `ruffle_render` and
 `ruffle_render_wgpu`, at a pinned git revision (`ae0ba6d`), linked into the
-bundle through `source/amber_core` and run in Resolume's process. Their crate
-dependency tree, wgpu included, is pinned in `source/amber_core/Cargo.lock`,
-which is the authoritative list.
+bundle through `source/amber_core` and run in Resolume's process, along with
+the rest of Ruffle's crates they need (`swf`, `ruffle_video`, `ruffle_wstr` and
+others). Their crate dependency tree, wgpu included, is pinned in
+`source/amber_core/Cargo.lock`, and every crate of it that reaches the binary is
+listed with its licence in THIRD-PARTY-NOTICES.txt.
 
 Ruffle's `default_font` feature is enabled, so the bundle also carries Ruffle's
 fallback device font: a subset of **Noto Sans**
-(<https://github.com/notofonts/latin-greek-cyrillic>), SIL Open Font License 1.1.
+(<https://github.com/notofonts/latin-greek-cyrillic>) merged with the
+Mathematical Operators block of **Noto Sans Math**
+(<https://github.com/notofonts/math>), both by the Noto Project Authors, SIL
+Open Font License 1.1.
 
 ### GLEW
 <https://github.com/nigels-com/glew> — BSD-3-Clause (with Mesa 3-D and Khronos

@@ -203,6 +203,21 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_VERSION "${AMBER_VERSION}"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${AMBER_VERSION}"
     )
+
+    # Ruffle, its crates, the FFGL SDK and the Noto font are compiled into the
+    # bundle, and their licences ask for their notices to go wherever the binary
+    # goes. In Contents/Resources they do, however the bundle is copied, and the
+    # code signature covers them. A DLL has nowhere to keep them, so the Windows
+    # zip carries the same two files beside Amber.dll (see AGENTS.md).
+    add_custom_command(TARGET AmberSource POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_BUNDLE_CONTENT_DIR:AmberSource>/Resources"
+        COMMAND ${CMAKE_COMMAND} -E copy
+            ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE
+            ${CMAKE_CURRENT_SOURCE_DIR}/THIRD-PARTY-NOTICES.txt
+            "$<TARGET_BUNDLE_CONTENT_DIR:AmberSource>/Resources/"
+        VERBATIM
+    )
 else()
     set_target_properties(AmberSource PROPERTIES
         OUTPUT_NAME "Amber"
