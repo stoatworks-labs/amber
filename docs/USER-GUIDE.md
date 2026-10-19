@@ -35,7 +35,8 @@ There are two ways out, and they're good at different things:
 The converter bundles nothing. It drives your own ffmpeg and your own build of Ruffle's exporter as
 separate processes, so there's no linking question to answer, and two dependencies to satisfy
 before it can convert anything. (The live plugin has Ruffle compiled in and needs neither. The
-licence notices for everything compiled into it are in the repo's `THIRD-PARTY-NOTICES.txt`.)
+licence notices for everything compiled into it are in `THIRD-PARTY-NOTICES.txt`, which comes
+with every download and is in the repo.)
 
 ```bash
 brew install ffmpeg-full

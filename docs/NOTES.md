@@ -52,6 +52,17 @@ release zips carried the binary and README.md with no licence text at all.
 the notices, the build copies it into the bundle, and `verify.sh` fails when it
 is stale. The rules are in AGENTS.md under "The architectural decision".
 
+**2026-10-19: the published v0.1.x downloads repacked.** Every asset of v0.1.0 to
+v0.1.3 was replaced in place with the same files plus `LICENSE` (each tag's own)
+and `THIRD-PARTY-NOTICES.txt`, beside the plugin rather than inside it, so the
+signed and stapled `Amber.bundle` and `Amber.dll` are byte for byte what shipped
+(every original zip entry kept its CRC). One notices file serves all four:
+`source/amber_core/Cargo.toml`, `Cargo.lock` and the FFGL pin are the same blobs at
+every tag, and `--check` passed against main. The disk images were rebuilt under
+their original volume names, then signed, notarised and stapled again. v0.1.0 and
+v0.1.1 shipped no README in any download, and still don't: nothing was added beyond
+the two files.
+
 ## What was learned, in priority order
 
 **The DXV and Hap encoder traps are in their own note —
