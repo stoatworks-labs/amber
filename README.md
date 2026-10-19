@@ -53,7 +53,7 @@ badger.swf -> badger.mov  544x400 @ 25fps  904 frames  15.2MB  [dxv]  [resized 5
 
 | Build | Download | Size |
 | --- | --- | --- |
-| x64 · .zip archive | [`amber-0.1.3-windows-x86_64.zip`](https://github.com/stoatworks-labs/amber/releases/download/v0.1.3/amber-0.1.3-windows-x86_64.zip) | 6.6 MB |
+| x64 · .zip archive | [`amber-0.1.3-windows-x86_64.zip`](https://github.com/stoatworks-labs/amber/releases/download/v0.1.3/amber-0.1.3-windows-x86_64.zip) | 6.7 MB |
 
 </details>
 
