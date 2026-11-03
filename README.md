@@ -13,6 +13,8 @@ Legacy Flash content, made playable in Resolume.
 
 **Video:** [What it does, in 25 seconds](https://www.youtube.com/watch?v=vNWyO8A20Fk)
 
+The [project page](https://stoatworks-labs.com/software/amber/) has the downloads, the [user guide](https://stoatworks-labs.com/software/amber/guide/) and the video.
+
 Resolume won't open `.swf` or `.flv`, so a decade and a half of VJ loops, web
 animation and motion tests is sitting in formats nothing on the machine will
 play. `amber` converts them into DXV or Hap (the codecs Resolume decodes on the
